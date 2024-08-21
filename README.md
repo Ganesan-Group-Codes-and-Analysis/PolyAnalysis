@@ -1,4 +1,4 @@
-# NMarioni PolyAnalysis
+# PolyAnalysis
 The following contains scripts developed, modified, and/or used by Nico Marioni in the Ganesan Polymer Physics group to perform molecular dynamics simulations and post analysis.
 
 **/PolyBuild/** is used to construct .gro and .top gromacs files for polymers of custom length/monomer
