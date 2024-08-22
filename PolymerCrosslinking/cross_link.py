@@ -138,9 +138,9 @@ if Finalize:
             print("Error in Processing Number of Non-Xlinked Molecules")
             exit()
     
-    print('Type 1 Molecules with no xlinks: ')
+    print('Type 1 Molecules with no xlinks: ' + str(len(track_a1)))
     print(track_a1)
-    print('Type 2 Molecules with no xlinks: ')
+    print('Type 2 Molecules with no xlinks: ' + str(len(track_a2)))
     print(track_a2)
     print('Removing Molecules')
 
@@ -180,9 +180,9 @@ if Finalize:
                     continue
                 track_a2.append(TOP.atoms[z_j].chain_idx)
     
-    print('Type 1 Molecules not crosslinked to the continuous membrane: ')
+    print('Type 1 Molecules not crosslinked to the continuous membrane: ' + str(len(track_a1)))
     print(track_a1)
-    print('Type 2 Molecules not crosslinked to the continuous membrane: ')
+    print('Type 2 Molecules not crosslinked to the continuous membrane: ' + str(len(track_a2)))
     print(track_a2)
     print('Removing Molecules')
 
