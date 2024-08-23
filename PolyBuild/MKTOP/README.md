@@ -3,8 +3,8 @@
 
 **mktop.pl** - slightly modified MKTOP script to generate a .top topology file from a given pdb
  - **NOTE**: Code is specifically designed to work with .top files created by an edited version of MKTOP. All edits are minor changes to the formatting of the generated .top file. MKTOP can be found here: https://github.com/aar2163/MKTOP Edits are outlined below.
- - **NOTE**: Line 3 $gromacs_dir="{PATH}" should path to your gromacs directory
- - **NOTE**: Lines 640, $ffdir = "amber03.ff", and 644, $ffdir = "oplsaa.ff", should specify your forcefield folder of interst
+ - **NOTE**: Line 3 ``` $gromacs_dir="{PATH}" ``` should path to your gromacs directory
+ - **NOTE**: Lines 640, ``` $ffdir = "amber03.ff" ```, and 644, ``` $ffdir = "oplsaa.ff" ```, should specify your forcefield folder of interst
  - **NOTE**: Lines 2858, 2870, 2883, 2907, 2922 should have only 1 space between 1 and improper_X_X_X_X, e.g.:
    <pre> $improper[$I]="$k[0] $k[1] $i $j 1 improper_O_C_X_Y" **NOT** $improper[$I]="$k[0] $k[1] $i $j 1    improper_O_C_X_Y" </pre>
  - **NOTE**: Lines 3071-3118 should be replaced by the following code:
@@ -84,6 +84,7 @@
 
 
 
+## MKTOP README
 
 **MKTOP README BELOW - See the github provided above to access the code**
 
