@@ -121,7 +121,7 @@ def main(trj_file, top_file, a1_name, a2_name, coord, t_min, t_max, step, nt):
 
     pool = mp.Pool(processes=nt)
     func = functools.partial(iPair)
-    pair_ar = pool.map(func, list(frame_ids))
+    pair_ar = pool.map(func, range(len(frame_ids)))
     pool.close()
     pool.join()
 
