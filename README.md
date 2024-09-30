@@ -16,6 +16,7 @@ The following contains scripts developed, modified, and/or used by Nico Marioni 
  - MSD/Onsager "MSDs" for Correlated Motion/1-D Displacement
    - Base code for Onsager analysis developed by Kara Fong: https://github.com/kdfong/transport-coefficients-MSD
  - Ion Pairing/Cluster Analysis
+ - Individual Ion RMSD and Ion Pairing as a function of time (dynamic_coordination.py and PLOT_coordination.py)
  - Ion Pair Autocorrelation Functions for extracting Ion Pair Residence Times
  - Water-Oxygen hydrogen bond distributions
  - Static and Dynamic Structure analyses for extracting Polymer Segmental Relaxation Timesscales
