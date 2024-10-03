@@ -393,10 +393,10 @@ def load_TRR():
 
     # predefined scatter factor for individual atom (atom mass, scatter length)
     # obtained from https://www.ncnr.nist.gov/resources/n-lengths/list.html
-    scatter_factor = dict([(1, -3.7406), (12, 6.6511), # H and C
-                           (14, 9.3700), (16, 5.8030), # N and O
+    scatter_factor = dict([(1, -3.7390), (12, 6.6460), # H and C
+                           (14, 9.3600), (16, 5.8030), # N and O
                            (19, 5.6540), (7, -1.9000), # F and Li
-                           (32, 2.8040)])              # S
+                           (32, 2.8470)])              # S
     scatter_length = np.array(list(map(scatter_factor.get, poly.masses.round().astype(int))))
     cell = uta.dimensions[0]
     if len(scatter_length[scatter_length==None]) != 0:
