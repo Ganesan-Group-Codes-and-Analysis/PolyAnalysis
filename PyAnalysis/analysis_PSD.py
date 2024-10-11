@@ -289,7 +289,8 @@ def iDist(frame):
 
 
     # Return the necessary information to complete the calculations: FFV_track / FFV_total gives the pore-accessible free volume, PSD_arr / PSD_arr[0] gives the pore-accessible PSD
-    return np.hstack((np.array([FFV_track, FFV_total], dtype=int),PSD_arr), dtype=int)
+    PSD_arr = np.insert(PSD_arr, 0, FFV_total); PSD_arr = np.insert(PSD_arr, 0, FFV_track)
+    return PSD_arr
     
 
 
