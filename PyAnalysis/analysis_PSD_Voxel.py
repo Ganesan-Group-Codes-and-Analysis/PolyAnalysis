@@ -264,9 +264,9 @@ def iDist(frame):
 
         pair_arr, dist_arr = distances.capped_distance(np.array(PSD_temp), sphere_arr, max_radius+0.5, box=cell)                    # Find distance between voxel-centers and free volume sphere centers
         dist_arr -= radii_arr[pair_arr[:,1]]                                                                                        # Subtract radius of each free volume sphere to find distance between voxel-centers and the surface of the sphere
-        # Useful print command for troubleshooting memory problems: prints the maximum distance calculated between voxel-centers and free volume sphere centers, the number of voxels, and the number of distances generated
-        if frame == 0:
-            print("PSD probes:", max_radius+0.5, len(PSD_temp), len(dist_arr))
+        ## Useful print command for troubleshooting memory problems: prints the maximum distance calculated between voxel-centers and free volume sphere centers, the number of voxels, and the number of distances generated
+        #if frame == 0:
+        #    print("PSD probes:", max_radius+0.5, len(PSD_temp), len(dist_arr))
     
         # Fill PSD_arr for all voxel-centers located within a free volume sphere
         index = 0; c_index = pair_arr[0,0]; skip = 0
@@ -289,9 +289,9 @@ def iDist(frame):
 
         PSD_temp = []
     
-        # Useful print command to track the probe-accessible PSD every loop
-        if frame == 0:
-            print("PSD:", PSD_arr[0])
+        ## Useful print command to track the probe-accessible PSD every loop
+        #if frame == 0:
+        #    print("PSD:", PSD_arr[0])
         #    print_string=''
         #    for i in PSD_arr:
         #        if i == 0:
