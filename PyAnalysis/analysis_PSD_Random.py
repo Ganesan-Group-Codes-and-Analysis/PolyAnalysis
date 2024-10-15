@@ -19,6 +19,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 # This code was specifically desgined to find the distribution of water-rich pores within a hydrated polymer system
 # The output includes the Cumulative Pore Size Distribution, Pore Size Distribution, and Free Volume Fraction
 # This code was written based on the methods used for PoreBlazer: https://github.com/SarkisovGitHub/PoreBlazer
+# This version of the code uses Random points to probe the free volume. This is expected to perform better in systems with a relatively large probe-accessible free volume
+# Systems with a relatively small probe-accessible free volume should consider using the Voxel version
 
 import MDAnalysis as mda
 import MDAnalysis.analysis.distances as dist
@@ -204,6 +206,7 @@ def iDist(frame):
             if skip == 0:
                 if np.any(dist_arr[index:] < 0):                                                                                    # If the random coordinate lies within a free volume sphere, mark it as no longer needing to be calculated and increase the number of coordinates within the free volume by 1
                     FFV_check[remaining[c_index]] = True
+                    FFV_track += 1
             del pair_arr; del dist_arr
     
             r_OLD = len(remaining); remaining = np.where(FFV_check == False)[0]
