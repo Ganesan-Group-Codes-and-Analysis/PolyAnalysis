@@ -268,9 +268,9 @@ def iDist(frame):
                 PSD_arr[np.where(d_arr <= max_size)[0]] += 1
         del pair_arr; del dist_arr
 
-        # Useful print command to track the probe-accessible PSD every loop. The maximum number of coordinates of N_PSD can be altered as needed to balance speed and accuracy
-        if frame == 0:
-            print("PSD:", PSD_arr[0])
+        ## Useful print command to track the probe-accessible PSD every loop. The maximum number of coordinates of N_PSD can be altered as needed to balance speed and accuracy
+        #if frame == 0:
+        #    print("PSD:", PSD_arr[0])
         #    print_string=''
         #    for i in PSD_arr:
         #        if i == 0:
