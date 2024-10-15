@@ -262,7 +262,7 @@ def iDist(frame):
                 if i == len(pair_arr[:,0]) - 1:                                                                                     # Check to make sure the last coordinate is counted
                     skip = 1
         if skip == 0:
-            contained = pair_arr[index:i][np.where(dist_arr[index:] < 0)[0],1]                                                               # Index of all free volume spheres containing the points
+            contained = pair_arr[index:][np.where(dist_arr[index:] < 0)[0],1]                                                               # Index of all free volume spheres containing the points
             if len(contained) > 0:                                                                                                  # If at least 1 free volume sphere contains the point, find the largest sphere and add it to PSD_arr in a cumulative manner
                 max_size = 2 * np.max(radii_arr[contained])
                 PSD_arr[np.where(d_arr <= max_size)[0]] += 1
