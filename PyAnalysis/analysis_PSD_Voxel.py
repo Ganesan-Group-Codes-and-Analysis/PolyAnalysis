@@ -161,7 +161,7 @@ def iDist(frame):
             for z in vox_z:
                 FFV_probe.append(np.round([x,y,z], decimals = 5)); FFV_total += 1
         # int(A/len(vox_y)/len(vox_z)) -> A is the max number of points to analyze at a time, adjust as needed based on memory
-        if (x != vox_x[-1]) and (count_i % int(1000000/len(vox_y)/len(vox_z)) != 0):
+        if (x != vox_x[-1]) and (count_i % int(500000/len(vox_y)/len(vox_z)) != 0):
             continue
 
         FFV_probe = np.array(FFV_probe)                                                                                             # Voxel-centers to check against the probe-accessible free volume
@@ -259,7 +259,7 @@ def iDist(frame):
     for count in range(1, len(PSD_probe)+1):
         PSD_temp.append(PSD_probe[count-1])
         # int(A/len(vox_y)/len(vox_z)) -> A is the max number of points to analyze at a time, adjust as needed based on memory
-        if ((count != len(PSD_probe)) and (count % 500000 != 0)):
+        if ((count != len(PSD_probe)) and (count % 100000 != 0)):
             continue
 
         pair_arr, dist_arr = distances.capped_distance(np.array(PSD_temp), sphere_arr, max_radius+0.5, box=cell)                    # Find distance between voxel-centers and free volume sphere centers
@@ -272,7 +272,7 @@ def iDist(frame):
         index = 0; c_index = pair_arr[0,0]; skip = 0
         for i,c in enumerate(pair_arr[:,0]):
             if c > c_index:
-                contained = pair_arr[index:i][np.where(dist_arr[index:i] < 0)[0],1]                                                          # Index of all free volume spheres containing the voxel-center
+                contained = pair_arr[index:i][np.where(dist_arr[index:i] < 0)[0],1]                                                 # Index of all free volume spheres containing the voxel-center
                 if len(contained) > 0:                                                                                              # If at least 1 free volume sphere contains the voxel-center, find the largest sphere and add it to PSD_arr in a cumulative manner
                     max_size = 2 * np.max(radii_arr[contained])
                     PSD_arr[np.where(d_arr <= max_size)[0]] += 1
@@ -281,7 +281,7 @@ def iDist(frame):
                 if i == len(pair_arr[:,0]) - 1:                                                                                     # Check to make sure the last voxel-center is counted
                     skip = 1
         if skip == 0:
-            contained = pair_arr[index:][np.where(dist_arr[index:] < 0)[0],1]                                                               # Index of all free volume spheres containing the voxel-center
+            contained = pair_arr[index:][np.where(dist_arr[index:] < 0)[0],1]                                                       # Index of all free volume spheres containing the voxel-center
             if len(contained) > 0:                                                                                                  # If at least 1 free volume sphere contains the voxel-center, find the largest sphere and add it to PSD_arr in a cumulative manner
                 max_size = 2 * np.max(radii_arr[contained])
                 PSD_arr[np.where(d_arr <= max_size)[0]] += 1
