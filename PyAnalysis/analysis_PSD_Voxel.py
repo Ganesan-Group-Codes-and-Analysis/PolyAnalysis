@@ -267,7 +267,6 @@ def iDist(frame):
         # Useful print command for troubleshooting memory problems: prints the maximum distance calculated between voxel-centers and free volume sphere centers, the number of voxels, and the number of distances generated
         if frame == 0:
             print("PSD probes:", max_radius+0.5, len(PSD_temp), len(dist_arr))
-        print(radii_arr[pair_arr[:,1]])
     
         # Fill PSD_arr for all voxel-centers located within a free volume sphere
         index = 0; c_index = pair_arr[0,0]; skip = 0
