@@ -19,17 +19,17 @@ The following contains scripts developed, modified, and/or used by Nico Marioni 
  - Individual Ion RMSD and Ion Pairing as a function of time (dynamic_coordination.py and PLOT_coordination.py)
  - Ion Pair Autocorrelation Functions for extracting Ion Pair Residence Times
  - Water-Oxygen hydrogen bond distributions
- - Static and Dynamic Structure analyses for extracting Polymer Segmental Relaxation Timesscales
+ - Static and Dynamic Structure analyses for extracting Polymer Segmental Relaxation Timescales
  - Pore Size Distributions
  - Extra - Save unwrapped system CoM at every frame for certain analyses, Convert .gro to .xyz for poreblazer
 
 ## Usage
-/PolyBuild/ and /PolymerCrosslinking/ are explained iwithin the README.md's of those folders
+/PolyBuild/ and /PolymerCrosslinking/ are explained within the README.md's of those folders
 
 /PyAnalysis/ and Python script general use below
 
 ### **Notable** and *Useful* Packages
- - **MDAnalysis** - Used to read in GROMACS .trr/.xtc and .tpr files and do basic analysis
+ - **MDAnalysis** - Used to read in GROMACS .trr/.xtc and .tpr files and do basic analyses
  - **h5py** - Used as a simple and efficient way to save large arrays of data/save memory as a .hdf5 I/O file
  - **networkx** - Used as a simple and efficient way to analyze clusters
  - **multiprocessing/functools** - Used to parallelize python scripts over multiple threads
@@ -62,17 +62,18 @@ The following contains scripts developed, modified, and/or used by Nico Marioni 
 
 ### Example Code Execution
 ```
-# Computes the RDF and CDF g_NA-CL, n_NA-CL over 20 ns of data from 80-100 ns
+# Computes the RDF, g_(Na-Cl) and CDF, n_(Na-Cl), over 20 ns of data from 80-100 ns
 python3 ${Insert Path}/analysis_rdf.py md.trr md.tpr NA CL 2.0 1 80000 100000 1 128
     where - script, trj_file, top_file, a1_name, a2_name, rmax, cdf_check, t_min, t_max, step, nt = argv
 
-# Computes the MSD for NA over the entire trajectory, where the system CoM is retrieved from CoM.hdf5
+# Computes the MSD for Na over the entire trajectory, where the system CoM is retrieved from CoM.hdf5
 python3 ${Insert Path}/analysis_msd.py unwrap.trr md.tpr NA -1 -1 -1 128 1
     where - script, trj_file, top_file, a_name, t_min, t_max, step, nt, CoM_check = argv
 ```
 
 ## **Necessary** and *Useful* Software
 **Gromacs** - Version 2020.5
+ - Newer versions can be used
 
 **Gaussian** - g16 is available through TACC
 
@@ -83,6 +84,7 @@ python3 ${Insert Path}/analysis_msd.py unwrap.trr md.tpr NA -1 -1 -1 128 1
  - Github repository and necessary modifications are listed within /PolyBuild/
 
 **Python** - Version 3.8.10
+ - All Python codes provided were written in 3.8.10, other versions of Python may be compatible
 ```
 # Current Python Packages: python3 -m pip list
 Package         Version
