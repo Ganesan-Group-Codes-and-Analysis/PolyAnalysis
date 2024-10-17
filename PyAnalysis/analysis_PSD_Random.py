@@ -19,8 +19,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 # This code was specifically desgined to find the distribution of water-rich pores within a hydrated polymer system
 # The output includes the Cumulative Pore Size Distribution, Pore Size Distribution, and Free Volume Fraction
 # This code was written based on the methods used for PoreBlazer: https://github.com/SarkisovGitHub/PoreBlazer
-# This version of the code uses Random points to probe the free volume. This is expected to perform better in systems with a relatively large probe-accessible free volume
-# Systems with a relatively small probe-accessible free volume should consider using the Voxel version
+#
+# This version of the code probes the free volume using Randomly generated points. There is a second version, Voxel, which is more accurate and should be compared against this version before attempting to apply it.
+# As is, the code attempts to create a reasonable number of random points based on the number of atoms in the system. Adjust these parameters as needed to achieve accurate results.
+# This version of the code is expected to run faster for systems with larger, well-defined free volumes. These results should be compared to the Voxel version or PoreBlazer to ensure you can retrieve accurate results.
+# If you run into memory or extreme run times, there are debugging lines throughout the code, and several values you can change to increase or decrease memory usage.
+# There are two instances where .xyz files can be created to visualize 1) probe-accessible spheres of maximum radius without overlapping the van der Waals volume of the systems, and 2) random points that lie within the probe-accessible volume
 
 import MDAnalysis as mda
 import MDAnalysis.analysis.distances as dist
@@ -124,10 +128,12 @@ def iDist(frame):
     del remaining
 
     # Reduce sphere_arr to spheres of the desirable size, typically minimum radius of probe_radius
+    sphere_geom = sphere_arr[np.where(radii_arr > 0)[0]]; radii_geom = radii_arr[radii_arr > 0]
     sphere_arr = sphere_arr[np.where(radii_arr > probe_radius)[0]]; radii_arr = radii_arr[radii_arr > probe_radius]; max_radius = np.max(radii_arr)
-    # Useful print command for troubleshooting problems: prints the number of sphere_centers within the free volume, the radius of the largest sphere, and the diameter of the largest sphere (pore)
+    # Useful print command for troubleshooting problems: prints the number of random spheres within the free volume, the radius of the largest sphere, and the diameter of the largest sphere (pore)
     if frame%nt == 0:
-        print("Spheres Created:", len(radii_arr), max_radius, 2 * max_radius)
+        print("Probe-Accessible Spheres:", len(radii_arr), max_radius, 2 * max_radius)                      # Free volume spheres that define the probe-accessible free volume
+        print("Free Volume Spheres:", len(radii_geom))                                                      # Free volume spheres that define the geometric or total free volume
 
     ### Code to write coordinates and radius of each random sphere to a .xyz file, which can be visualized in Ovito
     #if frame == 0:
@@ -217,6 +223,15 @@ def iDist(frame):
     if frame%nt == 0:
         print("FFV Final:", FFV_total, FFV_track / FFV_total)
     del remaining; del FFV_check
+
+    ### Code to write coordinates of each random point to a .xyz file, which can be visualized in Ovito
+    #if frame == 0:
+    #    with open('Free_Volume_Voxels.xyz', 'w') as anaout:
+    #        print(str(len(FFV_save)), file=anaout)
+    #        print('Properties=species:S:1:pos:R:3:Radius:R:1', file=anaout)
+    #        for i, sph in enumerate(FFV_save):
+    #            print('X {:10.5f} {:10.5f} {:10.5f} {:10.5f}'.format(sph[0] - cell[0]/2, sph[1] - cell[1]/2, sph[2] - cell[2]/2, L/2), file=anaout)
+    #    print('Free Volume Voxel XYZ File Printed')
 
 
 

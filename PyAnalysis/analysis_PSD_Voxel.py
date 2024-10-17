@@ -19,8 +19,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 # This code was specifically desgined to find the distribution of water-rich pores within a hydrated polymer system
 # The output includes the Cumulative Pore Size Distribution, Pore Size Distribution, and Free Volume Fraction
 # This code was written based on the methods used for PoreBlazer: https://github.com/SarkisovGitHub/PoreBlazer
-# This version of the code voxelizes the system to probe the free volume
-# This version is slower than the Random version, but is expected to be more accurate for systems with relatively small probe-accessible free volume
+#
+# This code voxelizes the system into voxels of side length L, defined below in the iDist function. The default value of L = 0.25 Angstroms, which appears to work well for systems with very low probe-accessible free volumes.
+# When implementing this code, it is recommended to test different values of L to ensure convergence of the FFV as L decreases. Note, computation time and memory usage will grow significantly as L decreases.
+# For systems with larger probe-accessible free volumes, consider trying the Random version of this code, which can run significantly faster. However, you should first verify the results against this code or PoreBlazer.
+# If you run into memory or extreme run times, there are debugging lines throughout the code, and several values you can change to increase or decrease memory usage.
+# There are two instances where .xyz files can be created to visualize 1) probe-accessible spheres of maximum radius without overlapping the van der Waals volume of the systems, and 2) voxel-centers that lie within the probe-accessible volume
 
 import MDAnalysis as mda
 import MDAnalysis.analysis.distances as dist
@@ -74,7 +78,7 @@ def iDist(frame):
 
     # This part of the calculation determines the maximum size of voxel-center spheres without overlapping system atoms, where the total volume of all spheres larger than probe_radius defines the probe-accessible free volume of the system
     # This code will generate points at the center of voxels with side length L and grow these points into free volume spheres 
-    L = 0.5
+    L = 0.25
     vox_x = np.round(np.linspace(0, cell[0], num = int(cell[0]/L)), decimals=5); vox_x = np.round((vox_x[:-1] + vox_x[1:])/2, decimals=5)
     vox_y = np.round(np.linspace(0, cell[1], num = int(cell[1]/L)), decimals=5); vox_y = np.round((vox_y[:-1] + vox_y[1:])/2, decimals=5)
     vox_z = np.round(np.linspace(0, cell[2], num = int(cell[2]/L)), decimals=5); vox_z = np.round((vox_z[:-1] + vox_z[1:])/2, decimals=5)
@@ -133,8 +137,8 @@ def iDist(frame):
     sphere_arr = sphere_arr[np.where(radii_arr > probe_radius)[0]]; radii_arr = radii_arr[radii_arr > probe_radius]; max_radius = np.max(radii_arr)
     # Useful print command for troubleshooting problems: prints the number of voxel-centers within the free volume, the radius of the largest sphere, and the diameter of the largest sphere (pore)
     if frame%nt == 0:
-        print("Spheres Created:", len(radii_arr), max_radius, 2 * max_radius)                               # Free volume spheres that define the probe-accessible free volume
-        print("Spheres Geometric:", len(radii_geom))                                                        # Free volume spheres that define the geometric or total free volume
+        print("Probe-Accessible Spheres:", len(radii_arr), max_radius, 2 * max_radius)                      # Free volume spheres that define the probe-accessible free volume
+        print("Free Volume Spheres:", len(radii_geom))                                                      # Free volume spheres that define the geometric or total free volume
 
     ### Code to write coordinates and radius of each free volume sphere to a .xyz file, which can be visualized in Ovito
     #if frame == 0:
