@@ -28,10 +28,10 @@ import os
 
 from sys import argv
 script, trj_file, top_file, a_name, dimension, t_min, t_max, step, nt, CoM_check = argv
-t_min = float(t_min); t_max = float(t_max); step = int(step); nt = int(nt)
+dimension = dimension.split(); t_min = float(t_min); t_max = float(t_max); step = int(step); nt = int(nt)
 # trj_file = .trr/.xtc file, top_file = .tpr file
 # a_name = name of atom to be analyzed
-# dimension = string containing 'x', 'y', or 'z', indicating the axis to calculate displacement on
+# dimension = string containing axes top calculate displacement in. If a single axis is desired, 'x', 'y', or 'z'. If you want to average over multiple axes, 'x y', 'x z', 'x y z', etc
 # t_min = start time for analysis in ps (-1 assumes the start time of the first frame)
 # t_max = end time for analysis in ps (-1 assumes the end time of the last frame)
 # step = frame step-size (-1 assumes a step-size of 1)
@@ -40,14 +40,18 @@ t_min = float(t_min); t_max = float(t_max); step = int(step); nt = int(nt)
 # CoM_check = 0 if the trj_file contains ALL atoms, 1 else
 # NOTE: If the trj_file does NOT contain ALL atoms, then the system center of mass will not be correct. First run Sys_CoM.py and then send CoM_check = 1
 
-# Example: python3 ${Path}/analysis_dis.py unwrap.trr md.tpr NA x -1 -1 -1 128 0
+# Example: python3 ${Path}/analysis_dis.py unwrap.trr md.tpr NA 'x' -1 -1 -1 128 0
 
-dim_ar = np.array(['x', 'y', 'z'])
-dimension = np.where(dim_ar == dimension)[0][0]
+print(dimension)
+dim_ar = np.array(['x', 'y', 'z']); dim_temp = []
+for i in dimension:
+    dim_temp.append(np.where(dim_ar == i)[0][0])
+dimension = np.array(dim_temp)
+print(dimension)
 
 
 
-def dis_analysis(dim, dt, dt_max):
+def dis_analysis(dimension, dt, dt_max):
 # calculate the DIS with CoM removed
 #
 # Inputs: dim = index of the desired dimension, dt = timestep in ps; dt_max = max time to calculate DIS over
@@ -55,7 +59,7 @@ def dis_analysis(dim, dt, dt_max):
     nframe = int(round(dt_max/dt))
 
     pool = mp.Pool(processes=nt)
-    func = functools.partial(dis_calc, dim, nframe)
+    func = functools.partial(dis_calc, dimension, nframe)
     dis = pool.map(func, list(range(nframe)))
     pool.close()
     pool.join()
@@ -73,7 +77,7 @@ def dis_analysis(dim, dt, dt_max):
 
 
 
-def dis_calc(dim, nframe, df):
+def dis_calc(dimension, nframe, df):
 # calculate the DIS with CoM removed
 #
 # Inputs: dim = index of the desired dimension, nframe = total number of frames, df = frame step to calculate the DIS over
@@ -84,14 +88,14 @@ def dis_calc(dim, nframe, df):
     if df%5000 == 0:
         print("dFrame "+ str(df))
 
-    DIS_file = h5py.File('/tmp/r_DIS_'+a_name+'.hdf5','r'); r = DIS_file['r'][:,:,dim]
+    DIS_file = h5py.File('/tmp/r_DIS_'+a_name+'.hdf5','r'); r = DIS_file['r'][:,:,dimension]
 
     dis = 0.0; count = 0
-    for j in range(0, nframe-1, 5):# Statistical enchancement by calculating over every 10 frames
+    for j in range(0, nframe-1, 1):# Statistical enchancement by calculating over every frame
         if df + j >= nframe:
             break
-        
-        dis += np.mean(r[j+df,:] - r[j,:])
+            
+        dis += np.mean(r[j+df] - r[j])
         count += 1
 
     DIS_file.close()
