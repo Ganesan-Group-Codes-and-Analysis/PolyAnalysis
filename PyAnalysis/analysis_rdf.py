@@ -169,7 +169,7 @@ def load_TRR():
     dt = dt*step
     print("Timestep " + str(dt))
     
-    r1_temp = []; r2_temp = []; cells = []
+    r1 = []; r2 = []; cells = []
     for frame in frame_ids:
         ts = uta.trajectory[frame]
         cell = ts.dimensions
@@ -178,12 +178,8 @@ def load_TRR():
         if ts.time%5000 == 0:
             print("Time "+ str(ts.time))
 
-        r1_temp.append(a1.positions)
-        
-        r2_temp.append(a2.positions)
-
-    r1 = np.array(r1_temp)
-    r2 = np.array(r2_temp)
+        r1.append(a1.positions)
+        r2.append(a2.positions)
 
     with h5py.File('/tmp/r_RDF_'+a1_name+'_'+a2_name+'.hdf5','w') as f:
         dset1 = f.create_dataset("r1", data=r1)
