@@ -90,7 +90,7 @@ for lab_i,lab in enumerate(labels):
 
     # Fill aX_res
     for j, a in enumerate(aX_list):
-        if mol_list[k] == 0:
+        if mol_list[j] == 0:
             c = 0
             for i in range(len(aX_res[a])):
                 aX_res[a][i] = c
