@@ -69,6 +69,7 @@ def iDist(frame):
         dset1 = f['system']; sys = dset1[frame]                                                                                                 # Position of all system atoms
         dset2 = f['sys_radii']; sys_radii = dset2[:]                                                                                            # Radius of all system atoms, where distance between sphere (see below) and polymer atom minus the radius is the distance to the van der waals surface of the atom
         dset3 = f['cells']; cell = dset3[frame]                                                                                                 # Size of the cell
+        dset4 = f['frames']; frame_ids = dset4[:]; frame_ids = np.arange(0,len(frame_ids),1)
 
 
 
@@ -110,7 +111,7 @@ def iDist(frame):
                         dist_arr -= sys_radii[pair_arr[:,1]]                                                                                    # Subtract radius of each system atom from the distance to get the distance to the surface of the atom
 
                         ## Useful print command for troubleshooting memory problems: prints the distance calulcated out to, the number of voxel-centers, and the total number of distances to system atoms generated
-                        #if frame == 0:
+                        #if frame == frame_ids[-1]:
                         #    print("Create Spheres:", d, len(remaining), len(dist_arr))
 
                         # Fill sphere_arr, radii_arr, and radii_check for all voxel-centers that contain system atoms within d distance, where only radii_check is altered if the radius r > probe_radius
@@ -141,13 +142,14 @@ def iDist(frame):
                 del remaining
     del sphere_temp; del radii_check
 
+    # Reduce sphere_arr to spheres of the desirable size, typically minimum radius of probe_radius
     sphere_arr = np.array(sphere_arr); radii_arr = np.array(radii_arr); max_radius = np.max(radii_arr)
     # Useful print command for troubleshooting problems: prints the number of voxel-centers within the free volume, the radius of the largest sphere, and the diameter of the largest sphere (pore)
     if frame%nt == 0:
         print("Spheres Created:", len(radii_arr), max_radius, 2 * max_radius)                                                                   # Free volume spheres that define the probe-accessible free volume
 
     ### Code to write coordinates and radius of each free volume sphere to a .xyz file, which can be visualized in Ovito
-    #if frame == 0:
+    #if frame == frame_ids[-1]:
     #    with open('Free_Volume_Spheres.xyz', 'w') as anaout:
     #        print(str(len(sphere_arr)), file=anaout)
     #        print('Properties=species:S:1:pos:R:3:Radius:R:1', file=anaout)
@@ -182,11 +184,10 @@ def iDist(frame):
 
                 # To reduce the number of calculations and limit memory usage, voxel-centers within the van der waals surface of the system are eliminated first
                 pair_arr, dist_arr = distances.capped_distance(FFV_probe, sys, np.max(np.array(Size_arr[:,1], dtype=float))+0.5, box=cell)      # Distance between each voxel-centers and the system atoms
-                
                 if len(dist_arr) > 0:
                     dist_arr -= sys_radii[pair_arr[:,1]]                                                                                        # Subtract radius of each system atom to find distance between voxel-centers and the van der waals surface of the atoms
                     ## Useful print command for troubleshooting memory problems: prints the maximum distance calculated between voxel-centers and system atoms, the number of voxel-centers, and the number of distances generated
-                    #if frame == 0:
+                    #if frame == frame_ids[-1]:
                     #    print("FFV Probes not in System:", np.max(np.array(Size_arr[:,1], dtype=float))+0.5, len(FFV_probe), len(dist_arr))
 
                     # Fill FFV_check for all voxel-centers located within the van der waals surface of the system
@@ -218,7 +219,6 @@ def iDist(frame):
                         d = max_radius + 0.5
 
                     pair_arr, dist_arr = distances.capped_distance(FFV_probe[remaining], sphere_arr, d, box=cell)                          # Distance between each voxel-center and the free volume sphere centers generated in the code above
-                    
                     if len(dist_arr) > 0:
                         dist_arr -= radii_arr[pair_arr[:,1]]                                                                               # Subtract radius of each free volume sphere to find distance between voxel-center and the surface of the sphere
 
@@ -248,21 +248,22 @@ def iDist(frame):
                     r_OLD = len(remaining); remaining = np.where(FFV_check == False)[0]
                 FFV_probe = np.zeros((len(FFV_probe), 3)); count = 0
                 ## Useful print command to track the probe-accessible free volume every loop
-                #if frame == 0:
+                #if frame == frame_ids[-1]:
                 #    print("FFV:", FFV_total, FFV_track / FFV_total)
     # Useful print command to track the final FFV
     if frame%nt == 0:
         print("FFV Final:", FFV_total, FFV_track / FFV_total)
     del remaining; del FFV_check
 
-    ### Code to write coordinates of each voxel-center to a .xyz file, which can be visualized in Ovito
-    #if frame == 0:
+    ## Code to write coordinates of each voxel-center to a .xyz file, which can be visualized in Ovito
+    #if frame == frame_ids[-1]:
     #    with open('Free_Volume_Voxels.xyz', 'w') as anaout:
     #        print(str(len(FFV_save)), file=anaout)
     #        print('Properties=species:S:1:pos:R:3:Radius:R:1', file=anaout)
     #        for i, sph in enumerate(FFV_save):
     #            print('X {:10.5f} {:10.5f} {:10.5f} {:10.5f}'.format(sph[0] - cell[0]/2, sph[1] - cell[1]/2, sph[2] - cell[2]/2, L/2), file=anaout)
     #    print('Free Volume Voxel XYZ File Printed')
+
 
 
 
@@ -290,7 +291,7 @@ def iDist(frame):
         if len(dist_arr) > 0:
             dist_arr -= radii_arr[pair_arr[:,1]]                                                                                        # Subtract radius of each free volume sphere to find distance between voxel-centers and the surface of the sphere
             ## Useful print command for troubleshooting memory problems: prints the maximum distance calculated between voxel-centers and free volume sphere centers, the number of voxels, and the number of distances generated
-            #if frame == 0:
+            #if frame == frame_ids[-1]:
             #    print("PSD probes:", max_radius+0.5, len(PSD_temp), len(dist_arr))
 
             # Fill PSD_arr for all voxel-centers located within a free volume sphere
@@ -315,7 +316,7 @@ def iDist(frame):
         PSD_temp = np.zeros((len(PSD_temp), 3))
 
         ## Useful print command to track the probe-accessible PSD every loop
-        #if frame == 0:
+        #if frame == frame_ids[-1]:
         #    print("PSD:", PSD_arr[0])
         #    print_string=''
         #    for i in PSD_arr:
