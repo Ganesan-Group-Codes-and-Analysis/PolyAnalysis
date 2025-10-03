@@ -1,0 +1,50 @@
+#!/bin/bash
+#SBATCH -J F_runner
+#SBATCH -N 5
+#SBATCH -n 400
+#SBATCH -p icx
+#SBATCH -o F_runner.o%j
+#SBATCH -t 48:00:00
+#SBATCH --mail-user=nmarioni@utexas.edu
+#SBATCH --mail-type=end     # email me when the job finishes
+
+set -x
+
+F_list=$1
+Sample_list=$2
+threads=72
+
+N=1
+for i in $F_list; do
+    drc=F_$i
+    cp F.sh $drc
+    cd $drc
+
+    for j in $Sample_list; do
+        drc=sample_$j
+        mkdir -p $drc
+        cp F.sh $drc
+        cd $drc
+
+        if [ ! -f "md.gro" ]; then
+            chmod +x F.sh
+            ./F.sh $drc $N $threads > ../$drc.log 2>&1 &
+            N=$(($N + 80))
+        fi
+
+        if [[ $N -ge 400 ]]; then
+            wait
+            N=1
+        fi
+
+        cd ..
+    done
+
+    echo "F_$i Completed"
+
+    cd ..
+
+done
+
+wait
+echo "All Jobs Completed"

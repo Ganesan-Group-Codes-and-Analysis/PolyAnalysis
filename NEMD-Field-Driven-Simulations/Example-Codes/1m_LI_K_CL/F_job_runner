@@ -1,0 +1,99 @@
+#!/bin/bash
+#SBATCH -J F_job_runner
+#SBATCH -N 1
+#SBATCH -n 48
+#SBATCH -p skx
+#SBATCH -o F_job_runner.o%j
+#SBATCH -t 48:00:00
+#SBATCH --mail-user=nmarioni@utexas.edu
+#SBATCH --mail-type=end     # email me when the job finishes
+
+set -x
+
+c1_name=$1
+c2_name=$2
+a1_name=$3
+a2_name=$4
+F_list=$5
+Sample_list=$6
+
+threads=48
+
+for j in $F_list; do
+    drc=F_$j
+    cd $drc
+
+    for k in $Sample_list; do
+        drc=sample_$k
+        cd $drc
+
+        printf '0\n' | gmx trjconv -f md.xtc -s md.tpr -o /tmp/unwrap.xtc -pbc nojump
+
+        if [[ "$c1_name" == "$c2_name" ]]; then
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${c1_name} 'x' -1 -1 -1 $threads 2
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${c1_name} 'x' -1 -1 -1 $threads 2
+
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${c1_name} 'y' -1 -1 -1 $threads 2
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${c1_name} 'y' -1 -1 -1 $threads 2
+
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${c1_name} 'z' -1 -1 -1 $threads 2
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${c1_name} 'z' -1 -1 -1 $threads 2
+        else
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${c1_name} 'x' -1 -1 -1 $threads 2
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${c1_name} 'x' -1 -1 -1 $threads 2
+
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${c1_name} 'y' -1 -1 -1 $threads 2
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${c1_name} 'y' -1 -1 -1 $threads 2
+
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${c1_name} 'z' -1 -1 -1 $threads 2
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${c1_name} 'z' -1 -1 -1 $threads 2
+
+
+
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${c2_name} 'x' -1 -1 -1 $threads 2
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${c2_name} 'x' -1 -1 -1 $threads 2
+
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${c2_name} 'y' -1 -1 -1 $threads 2
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${c2_name} 'y' -1 -1 -1 $threads 2
+
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${c2_name} 'z' -1 -1 -1 $threads 2
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${c2_name} 'z' -1 -1 -1 $threads 2
+        fi
+
+        if [[ "$a1_name" == "$a2_name" ]]; then
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${a1_name} 'x' -1 -1 -1 $threads 2
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${a1_name} 'x' -1 -1 -1 $threads 2
+
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${a1_name} 'y' -1 -1 -1 $threads 2
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${a1_name} 'y' -1 -1 -1 $threads 2
+
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${a1_name} 'z' -1 -1 -1 $threads 2
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${a1_name} 'z' -1 -1 -1 $threads 2
+        else
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${a1_name} 'x' -1 -1 -1 $threads 2
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${a1_name} 'x' -1 -1 -1 $threads 2
+
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${a1_name} 'y' -1 -1 -1 $threads 2
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${a1_name} 'y' -1 -1 -1 $threads 2
+
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${a1_name} 'z' -1 -1 -1 $threads 2
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${a1_name} 'z' -1 -1 -1 $threads 2
+
+
+
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${a2_name} 'x' -1 -1 -1 $threads 2
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${a2_name} 'x' -1 -1 -1 $threads 2
+
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${a2_name} 'y' -1 -1 -1 $threads 2
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${a2_name} 'y' -1 -1 -1 $threads 2
+
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${a2_name} 'z' -1 -1 -1 $threads 2
+            python3 ../../../../analysis_dis.py /tmp/unwrap.xtc md.tpr ${a2_name} 'z' -1 -1 -1 $threads 2
+        fi
+
+        rm /tmp/unwrap.xtc
+
+        cd ..
+    done
+    cd ..
+done
