@@ -1,0 +1,14 @@
+; Include forcefield parameters
+#include "../../../mdp/oplsaa_mod_MP.ff/forcefield.itp"
+
+; Include water topology
+#include "../../../mdp/oplsaa_mod_MP.ff/tip4p2005.itp"
+
+;Include ion topology
+#include "../../../mdp/oplsaa_mod_MP.ff/scaled_ions.itp"
+
+[ system ]
+; Name
+Solution in water
+
+[ molecules ]

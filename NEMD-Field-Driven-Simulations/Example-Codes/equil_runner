@@ -1,0 +1,58 @@
+#!/bin/bash
+#SBATCH -J equil_runner
+#SBATCH -N 5
+#SBATCH -n 400
+#SBATCH -p icx
+#SBATCH -o equil_runner.o%j
+#SBATCH -t 48:00:00
+#SBATCH --mail-user=nmarioni@utexas.edu
+#SBATCH --mail-type=end     # email me when the job finishes
+
+set -x
+
+c1_name=$1
+c2_name=$2
+a1_name=$3
+a2_name=$4
+IFS=' ' read -r -a N1 <<< "$5"
+IFS=' ' read -r -a N2 <<< "$6"
+IFS=' ' read -r -a NSum <<< "$7"
+Sub_list=$8
+Sample_list=$9
+threads=72
+
+N=1
+count=0
+for i in $Sub_list; do
+    drc=x_$i
+    mkdir -p $drc
+    cp equil.sh $drc
+    cd $drc
+
+    for j in $Sample_list; do
+        drc=sample_$j
+        mkdir -p $drc
+        cp equil.sh $drc
+        cd $drc
+
+        if [ ! -f "md.gro" ]; then
+            chmod +x equil.sh
+            ./equil.sh ${c1_name} ${c2_name} ${a1_name}  ${a2_name} ${N1[$count]} ${N2[$count]} ${NSum[$count]} $N $threads > ../$drc.log 2>&1 &
+            N=$(($N + 80))
+        fi
+
+        if [[ $N -ge 400 ]]; then
+            wait
+            N=1
+        fi
+
+        cd ..
+    done
+
+    cd ..
+
+    ((count++))
+done
+
+wait
+echo "All Jobs Completed"
