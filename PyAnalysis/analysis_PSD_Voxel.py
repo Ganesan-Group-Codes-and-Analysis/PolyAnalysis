@@ -22,7 +22,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 # This code voxelizes the system into voxels of side length L, defined below in the iDist function. The default value of L = 0.35 Angstroms, which appears to work well for systems with very low probe-accessible free volumes.
 # When implementing this code, it is recommended to test different values of L to ensure convergence of the FFV as L decreases. Note, computation time and memory usage will grow significantly as L decreases.
-# For systems with larger probe-accessible free volumes, consider trying the Random version of this code, which can run significantly faster. However, you should first verify the results against this code or PoreBlazer.
 # If you run into memory or extreme run times, there are debugging lines throughout the code, and several values you can change to increase or decrease memory usage.
 # There are two instances where .xyz files can be created to visualize 1) probe-accessible spheres of maximum radius without overlapping the van der Waals volume of the systems, and 2) voxel-centers that lie within the probe-accessible volume
 
@@ -76,43 +75,71 @@ def iDist(frame):
 
 
     # This part of the calculation determines the maximum size of voxel-center spheres without overlapping system atoms, where the total volume of all spheres larger than probe_radius defines the probe-accessible free volume of the system
-    # This code will generate points at the center of voxels with side length L and grow these points into free volume spheres 
-    L = 0.35
-    vox_x = np.round(np.linspace(0, cell[0], num = int(cell[0]/L)), decimals=5); vox_x = np.round((vox_x[:-1] + vox_x[1:])/2, decimals=5)
-    vox_y = np.round(np.linspace(0, cell[1], num = int(cell[1]/L)), decimals=5); vox_y = np.round((vox_y[:-1] + vox_y[1:])/2, decimals=5)
-    vox_z = np.round(np.linspace(0, cell[2], num = int(cell[2]/L)), decimals=5); vox_z = np.round((vox_z[:-1] + vox_z[1:])/2, decimals=5)
+    # This code will generate points at the center of voxels with side length L and grow these points into free volume spheres
+    # Changing L, N, and d_inc can reduce run time and memory usage
+    L = 0.35                                                                                                                                    # Side length of voxel in angstroms
+    vox_x = np.round(np.linspace(0, cell[0], num = int(cell[0]/L)), decimals=5); vox_x = np.round((vox_x[:-1] + vox_x[1:])/2, decimals=5)       # Voxel-centers in the x direction
+    vox_y = np.round(np.linspace(0, cell[1], num = int(cell[1]/L)), decimals=5); vox_y = np.round((vox_y[:-1] + vox_y[1:])/2, decimals=5)       # Voxel-centers in the y direction
+    vox_z = np.round(np.linspace(0, cell[2], num = int(cell[2]/L)), decimals=5); vox_z = np.round((vox_z[:-1] + vox_z[1:])/2, decimals=5)       # Voxel-centers in the z direction
 
-    # sphere_arr = np.zeros((A, 3)) -> A is the max number of points to analyze at a time, adjust as needed based on memory
-    sphere_temp = np.zeros((100000, 3)); count = 0                                                                                              # sphere_temp is a reduced-size array containing voxel-center coordinates
     sphere_arr = []; radii_arr = []                                                                                                             # sphere_arr and radii_arr track free volume sphere positions and size, respectively, where we are interested in sphere of radius r > probe_radius
-    for x in vox_x:
-        for y in vox_y:
-            for z in vox_z:
-                sphere_temp[count] = np.round([x,y,z], decimals = 5); count += 1
+    PSD_probes = []                                                                                                                             # PSD_probes tracks all voxel-centers not within the system van der Waals volume for later calculations
+    
+    N = 20e9                                                                                                                                    # Maximum number of distance calculations-per-loop. A lower number uses less memory.
+    N_cube = int((N/len(sys))**(1/3))**3                                                                                                        # To improve efficiency, voxels are looped over in cubes of N_cube voxel-centers
+    vox_inc = int(N_cube**(1/3)); vox_track = np.array((0,0,0), dtype=int); vox_track[0] = -vox_inc                                             # vox_inc = side length of voxel cube, vox_track tracks the location of the cubes in x, y, and z compared to the position in vox_x, vox_y, and vox_z
 
-                if (not (x == vox_x[-1] and y == vox_y[-1] and z == vox_z[-1])) and (count < len(sphere_temp)):
-                    continue
-                
-                if count == len(sphere_temp):
-                    sphere_temp = np.round(sphere_temp, decimals = 5)
-                else:
-                    sphere_temp = np.round(sphere_temp[:count], decimals = 5)
-                radii_check = np.zeros((len(sphere_temp)), dtype=bool)                                                                           # radii_check tracks whether or not the free volume sphere size has been determined
+    ## Prints the number of voxels-per-cube and number of voxel cubes
+    #if frame == frame_ids[-1]:
+    #    print("Number of voxels-per-cube: ", N_cube)
+    #    print("Number of voxel cubes: ", np.ceil(len(vox_x)/vox_inc).astype(int)*np.ceil(len(vox_y)/vox_inc).astype(int)*np.ceil(len(vox_z)/vox_inc).astype(int))
+    for x_i in np.arange(vox_inc,len(vox_x)+vox_inc,vox_inc):
+        vox_track[0] += vox_inc
+        if x_i > len(vox_x):
+            x_i = len(vox_x)
 
-                # To reduce the number of calculations and limit memory usage, the distance between voxel-centers and polymer atoms is done in steps of 2 Angstroms
-                d = 0.0                                                                                                                          # Maximum distance to calculate between every voxel-center and every system atom
+        vox_track[1] = -vox_inc
+        for y_i in np.arange(vox_inc,len(vox_y)+vox_inc,vox_inc):
+            vox_track[1] += vox_inc
+            if y_i > len(vox_y):
+                y_i = len(vox_y)
+    
+            vox_track[2] = -vox_inc
+            for z_i in np.arange(vox_inc,len(vox_z)+vox_inc,vox_inc):
+                vox_track[2] += vox_inc
+                if z_i > len(vox_z):
+                    z_i = len(vox_z)
+
+                sphere_temp = np.zeros((N_cube, 3)); count = 0                                                                                  # sphere_temp contains the position of the voxel-centers within the cube of size N_cube
+                for x in vox_x[vox_track[0]:x_i]:
+                    for y in vox_y[vox_track[1]:y_i]:
+                        for z in vox_z[vox_track[2]:z_i]:
+                            sphere_temp[count] = np.round([x,y,z], decimals = 5); count += 1
+                sphere_temp = np.round(sphere_temp[:count], decimals = 5)
+                radii_check = np.zeros((len(sphere_temp)), dtype=bool)                                                                          # radii_check tracks whether or not the free volume sphere size has been determined
+
+                # Find the approximate center of the voxel cube to find the system atoms near the voxel cube (sys_mask), where system atoms define the van der Waals volume of the system. Reduces computational cost
+                center = np.round([vox_x[vox_track[0] + int((x_i - vox_track[0])/2)], vox_y[vox_track[1] + int((y_i - vox_track[1])/2)], vox_z[vox_track[2] + int((z_i - vox_track[2])/2)]], decimals = 5)
+
+                # To reduce the number of calculations and limit memory usage, the distance between voxel-centers and system atoms is done in steps of d_inc Angstroms
+                d = 0.0; d_inc = 2                                                                                                               # Maximum distance to calculate between every voxel-center and every system atom
                 remaining = np.where(radii_check == False)[0]                                                                                    # Index of voxel-centers that still need their size determined
                 while len(remaining) > 0:
-                    d += 2
+                    d += d_inc
 
-                    pair_arr, dist_arr = distances.capped_distance(sphere_temp[remaining], sys, d, box=cell)                                    # Distance between voxel-centers and system atoms
+                    sys_mask = distances.capped_distance(center, sys, d + np.sqrt(3)*vox_inc*L/2 + 0.5, box=cell)[0][:,1]                        # System atoms near the voxel cube
+
+                    pair_arr, dist_arr = distances.capped_distance(sphere_temp[remaining], sys[sys_mask], d, box=cell)                           # Distance between voxel-centers and system atoms
 
                     if len(dist_arr) > 0:
-                        dist_arr -= sys_radii[pair_arr[:,1]]                                                                                    # Subtract radius of each system atom from the distance to get the distance to the surface of the atom
+                        dist_arr -= sys_radii[sys_mask][pair_arr[:,1]]                                                                           # Subtract radius of each system atom from the distance to get the distance from the voxel-center to the surface of the atom
 
-                        ## Useful print command for troubleshooting memory problems: prints the distance calulcated out to, the number of voxel-centers, and the total number of distances to system atoms generated
+                        ## Useful print command for troubleshooting memory problems: prints the distance calulcated out to and the number of distance calculations
+                        ## Decreasing d_inc or N will reduce the number of distances generated each cycle, reducing memory usage
                         #if frame == frame_ids[-1]:
-                        #    print("Create Spheres:", d, len(remaining), len(dist_arr))
+                        #    if d == d_inc:
+                        #        print("Voxel Block: ", (vox_track/vox_inc).astype(int))
+                        #    print("Distance calculations: {:2.1f} {:.1e}".format(d, len(sphere_temp[remaining])*len(sys[sys_mask])))
 
                         # Fill sphere_arr, radii_arr, and radii_check for all voxel-centers that contain system atoms within d distance, where only radii_check is altered if the radius r > probe_radius
                         index = 0; c_index = pair_arr[0,0]; skip = 0
@@ -122,33 +149,45 @@ def iDist(frame):
                                 if r_min > probe_radius:
                                     sphere_arr.append(sphere_temp[remaining[c_index]]); radii_arr.append(r_min)
                                     radii_check[remaining[c_index]] = True                                                                      # Sphere does not overlap the system and radius r > probe_radius
+                                    
+                                    PSD_probes.append(sphere_temp[remaining[c_index]])
                                 else:
                                     radii_check[remaining[c_index]] = True                                                                      # Sphere is within the van der waals surface of the system or radius r < probe_radius
+
+                                    if r_min > 0:                                                                                               # voxel-center is within the van der Waals surface of the system
+                                        PSD_probes.append(sphere_temp[remaining[c_index]])
+
                                 index = i; c_index = c
 
                                 if i == len(pair_arr[:,0]) - 1:                                                                                 # Check to make sure the last voxel-center is counted
                                     skip = 1
+
                         if skip == 0:
-                            r_min = np.round(np.min(dist_arr[index:]), decimals=5)
+                            r_min = np.round(np.min(dist_arr[index:]), decimals=5)                                                              # Minimum distance between voxel-center and system atom
                             if r_min > probe_radius:
                                 sphere_arr.append(sphere_temp[remaining[c_index]]); radii_arr.append(r_min)
-                                radii_check[remaining[c_index]] = True                                                                          # Minimum distance between voxel-center and system atom
-                            else:
                                 radii_check[remaining[c_index]] = True                                                                          # Sphere does not overlap the system and radius r > probe_radius
+                                
+                                PSD_probes.append(sphere_temp[remaining[c_index]])
+                            else:
+                                radii_check[remaining[c_index]] = True                                                                          # Sphere is within the van der waals surface of the system or radius r < probe_radius
+                                
+                                if r_min > 0:                                                                                                   # voxel-center is within the van der Waals surface of the system
+                                    PSD_probes.append(sphere_temp[remaining[c_index]])
                     del pair_arr; del dist_arr
 
-                    remaining = np.where(radii_check == False)[0]                                                                               # Sphere is within the van der waals surface of the system or radius r < probe_radius
-                sphere_temp = np.zeros((len(sphere_temp), 3)); count = 0
+                    remaining = np.where(radii_check == False)[0]
                 del remaining
+    sphere_arr = np.array(sphere_arr); radii_arr = np.array(radii_arr); max_radius = np.max(radii_arr); PSD_probes = np.array(PSD_probes)
     del sphere_temp; del radii_check
 
-    # Reduce sphere_arr to spheres of the desirable size, typically minimum radius of probe_radius
-    sphere_arr = np.array(sphere_arr); radii_arr = np.array(radii_arr); max_radius = np.max(radii_arr)
-    # Useful print command for troubleshooting problems: prints the number of voxel-centers within the free volume, the radius of the largest sphere, and the diameter of the largest sphere (pore)
-    if frame%nt == 0:
-        print("Spheres Created:", len(radii_arr), max_radius, 2 * max_radius)                                                                   # Free volume spheres that define the probe-accessible free volume
+    ## Useful print command for troubleshooting problems: prints the number of voxel-centers within the free volume, the radius of the largest sphere, and the diameter of the largest sphere (pore)
+    ## Also prints the number of voxels within the system van der Waals free volume, voxels containing free volume spheres of radius r >= probe_radius, and voxels that need to be assessed whether they are in the free volume or not
+    #if frame == frame_ids[-1]:
+    #    print("Spheres Created: ", len(radii_arr), max_radius, 2 * max_radius)
+    #    print("Voxels not within the system: ", len(PSD_probes))
 
-    ### Code to write coordinates and radius of each free volume sphere to a .xyz file, which can be visualized in Ovito
+    ### Code to write coordinates and radius of each free volume sphere to a .xyz file, which can be visualized in Ovito, etc
     #if frame == frame_ids[-1]:
     #    with open('Free_Volume_Spheres.xyz', 'w') as anaout:
     #        print(str(len(sphere_arr)), file=anaout)
@@ -161,99 +200,61 @@ def iDist(frame):
 
 
 
-    # This part of the calculation determines the probe-accessible fractional free volume
-    # The code will take the voxelized system and determine if each voxel-center lies within the free volume or not
+    # This part of the calculation determines the free volume fraction and cumulative probe-accessible pore size distribution, where the distribution is defined as the probability that a random point (voxel) within the free volume resides within a free volume sphere of diameter d with minimum size probe_radius
+    # This code will take each voxel within not within the system volume and determine 1) if it lies within the free volume (FFV), and 2) the largest free volume sphere it lies within (PSD)
+    # Changing L, N, and d_inc can reduce run time and memory usage
 
-    # FFV_probe = np.zeros((A, 3)) -> A is the max number of points to analyze at a time, adjust as needed based on memory
-    FFV_probe = np.zeros((100000, 3)); count = 0                                                                                                # voxel-centers to analyze
-    FFV_save = []                                                                                                                               # voxel-centers within the free volume will be re-used for the PSD calculation
-    FFV_track = 0; FFV_total = 0                                                                                                                # Number of voxels within the free volume; Total number of voxels
-    for x in vox_x:
-        for y in vox_y:
-            for z in vox_z:
-                FFV_probe[count] = np.round([x,y,z], decimals = 5); count += 1; FFV_total += 1
+    FFV_track = 0; FFV_total = len(vox_x)*len(vox_y)*len(vox_z)                                                                                 # Track number of voxels within the free volume against the total number to get FFV
+    d_max = 50; d_inc = 0.1                                                                                                                     # d_max is the largest free volume diameter to measure PSD out to; d_inc is the stepsize between free volume diameters
+    d_arr = np.arange(0, d_max + d_inc, d_inc); PSD_arr = np.zeros_like(d_arr, dtype=int)                                                       # d_arr is the histogram of free volume sphere sizes; PSD_arr tracks the number of instances of voxels contained within free volume spheres of size at least d
 
-                if (not (x == vox_x[-1] and y == vox_y[-1] and z == vox_z[-1])) and (count < len(FFV_probe)):
-                    continue
-                
-                if count == len(FFV_probe):
-                    FFV_probe = np.round(FFV_probe, decimals = 5)
+    N = 10e9                                                                                                                                    # Maximum number of distance calculations-per-loop. Lower number reduces memory usage
+    FFV_save = np.zeros((1,3)) - 1                                                                                                              # Save voxel-centers within the free volume incase you want it to be printed for visualization
+    for d in np.round(np.arange(d_max, 0, -d_inc), decimals = 5):
+        if d - d_inc > 2*max_radius:
+            continue
+        
+        # For efficiency, we measure the distance between free volume spheres and the voxel-centers starting with the largest d_arr bin and moving down
+        sphere_temp = sphere_arr[(radii_arr < d/2) & (radii_arr > (d - d_inc)/2)]; radii_temp = radii_arr[(radii_arr < d/2) & (radii_arr > (d - d_inc)/2)]
+        if len(sphere_temp) == 0:
+            continue
+        
+        # For efficiency, we limit the number of free volume spheres per loop to a total of N distance calculations
+        count = 0
+        while count < len(sphere_temp):
+            count_old = count; count += min(int(N/len(PSD_probes)), len(sphere_temp)-count_old)
+
+            sph_temp = sphere_temp[count_old:count]; rad_temp = radii_temp[count_old:count]
+
+            ## Useful print command for troubleshooting memory problems: the number of distance calculations
+            ## Decreasing N will reduce the number of distances generated each cycle, reducing memory usage
+            #if frame == frame_ids[-1]:
+            #    if count_old == 0:
+            #        print("Radii: ", d/2)
+            #    print("Distances calculated: {:.1e}".format(len(sph_temp)*len(PSD_probes)))
+            
+            pair_arr, dist_arr = distances.capped_distance(sph_temp, PSD_probes, d/2, box=cell)                                                 # Distance between free volume spheres and voxel-centers
+            if len(dist_arr) > 0:
+                dist_arr -= rad_temp[pair_arr[:,0]]                                                                                             # Subtract radius of each free volume sphere from the distance to get the distance from the voxel-center to the surface of the free volume sphere
+                pair_arr = np.unique(pair_arr[:,1][dist_arr < 0])                                                                               # Only consider voxel-centers that lies within the free volume sphere (adjusted distance < 0), and only count each occurence once (unique)
+
+                FFV_track += len(pair_arr); PSD_arr[np.where(d_arr < d)[0]] += len(pair_arr)                                                    # Voxel-centers w/n free volume sphere count towards the FFV and cumulatively towards the PSD
+                if np.all(FFV_save[0] == -1):                                                                                                   # Save free volume voxel-centers for printing
+                    FFV_save = PSD_probes[pair_arr]
                 else:
-                    FFV_probe = np.round(FFV_probe[:count], decimals = 5)
-                FFV_check = np.zeros((len(FFV_probe)), dtype=bool)                                                                              # FFV_check tracks whether or not the voxel-center has been analyzed
-
-                # To reduce the number of calculations and limit memory usage, voxel-centers within the van der waals surface of the system are eliminated first
-                pair_arr, dist_arr = distances.capped_distance(FFV_probe, sys, np.max(np.array(Size_arr[:,1], dtype=float))+0.5, box=cell)      # Distance between each voxel-centers and the system atoms
-                if len(dist_arr) > 0:
-                    dist_arr -= sys_radii[pair_arr[:,1]]                                                                                        # Subtract radius of each system atom to find distance between voxel-centers and the van der waals surface of the atoms
-                    ## Useful print command for troubleshooting memory problems: prints the maximum distance calculated between voxel-centers and system atoms, the number of voxel-centers, and the number of distances generated
-                    #if frame == frame_ids[-1]:
-                    #    print("FFV Probes not in System:", np.max(np.array(Size_arr[:,1], dtype=float))+0.5, len(FFV_probe), len(dist_arr))
-
-                    # Fill FFV_check for all voxel-centers located within the van der waals surface of the system
-                    index = 0; c_index = pair_arr[0,0]; skip = 0
-                    for i,c in enumerate(pair_arr[:,0]):
-                        if c > c_index:
-                            if np.any(dist_arr[index:i] < 0):                                                                                   # If this voxel-center is within the van der waals surface of any system atom, mark it as no longer needing to be calculated
-                                FFV_check[c_index] = True
-                            index = i; c_index = c
-
-                            if i == len(pair_arr[:,0]) - 1:                                                                                     # Check to make sure the last voxel-center is counted
-                                skip = 1
-                    if skip == 0:
-                        if np.any(dist_arr[index:] < 0):                                                                                        # If this voxel-center is within the van der waals surface of any system atom, mark it as no longer needing to be calculated
-                            FFV_check[c_index] = True
-                del pair_arr; del dist_arr
-
-                # To reduce the number of calculations and limit memory usage, the distance between voxel-centers and free volume spheres is done in steps of 2 Angstroms
-                d = 0                                                                                                                       # Maximum distance to calculate between every voxel-center and every free volume sphere
-                remaining = np.where(FFV_check == False)[0]                                                                                 # Index of voxel-centers that still need their location determined
-                r_OLD = -1                                                                                                                  # Track how many points are remaining at previous value of d
-                while d < max_radius:
-                    d += 2
-
-                    # Some number of voxel-centers will never be assigned due to residing in free volume elements smaller than probe_radius
-                    # Setting d to probe_radius + 0.5 once most of the points have been assigned dramatically speeds up the calculations
-                    # The value checked against, here 0.10, may need to be adjusted depending on the system
-                    if len(remaining) == 0 or (r_OLD > 0 and d > 2*probe_radius and (r_OLD - len(remaining))/len(remaining) < 0.10):
-                        d = max_radius + 0.5
-
-                    pair_arr, dist_arr = distances.capped_distance(FFV_probe[remaining], sphere_arr, d, box=cell)                          # Distance between each voxel-center and the free volume sphere centers generated in the code above
-                    if len(dist_arr) > 0:
-                        dist_arr -= radii_arr[pair_arr[:,1]]                                                                               # Subtract radius of each free volume sphere to find distance between voxel-center and the surface of the sphere
-
-                        ## Useful print command for troubleshooting memory problems: prints the maximum distance calculated between voxel-center and free volume spheres, the number of voxel-centers, and the number of distances generated
-                        #if frame%nt == 0:
-                        #    print("FFV Probes:", d, len(remaining), len(dist_arr))
-
-                        # Fill FFV_check for all voxel-centers located within a free volume sphere
-                        index = 0; c_index = pair_arr[0,0]; skip = 0
-                        for i,c in enumerate(pair_arr[:,0]):
-                            if c > c_index:
-                                if np.any(dist_arr[index:i] < 0):                                                                           # If the voxel-center lies within a free volume sphere, mark it as no longer needing to be calculated and increase the number of voxels within the free volume by 1
-                                    FFV_check[remaining[c_index]] = True
-                                    FFV_save.append(FFV_probe[remaining[c_index]])                                                          # Save the voxel-center for later use in PSD caluclations
-                                    FFV_track += 1
-                                index = i; c_index = c
-
-                                if i == len(pair_arr[:,0]) - 1:                                                                             # Check to make sure the last voxel-centers is counted
-                                    skip = 1
-                        if skip == 0:
-                            if np.any(dist_arr[index:] < 0):                                                                                # If the voxel-center lies within a free volume sphere, mark it as no longer needing to be calculated and increase the number of voxels within the free volume by 1
-                                FFV_check[remaining[c_index]] = True
-                                FFV_save.append(FFV_probe[remaining[c_index]])                                                              # Save the voxel-center for later use in PSD caluclations
-                                FFV_track += 1
-                    del pair_arr; del dist_arr
-
-                    r_OLD = len(remaining); remaining = np.where(FFV_check == False)[0]
-                FFV_probe = np.zeros((len(FFV_probe), 3)); count = 0
-                ## Useful print command to track the probe-accessible free volume every loop
-                #if frame == frame_ids[-1]:
-                #    print("FFV:", FFV_total, FFV_track / FFV_total)
-    # Useful print command to track the final FFV
-    if frame%nt == 0:
-        print("FFV Final:", FFV_total, FFV_track / FFV_total)
-    del remaining; del FFV_check
+                    FFV_save = np.append(FFV_save, PSD_probes[pair_arr], axis=0)
+                PSD_probes = np.delete(PSD_probes, pair_arr, axis=0)                                                                            # No longer consider voxel-centers that are found within a free volume sphere in future loops
+    
+    ## Code to print the final FFV and PSD for the last frame analyzed
+    #if frame == frame_ids[-1]:
+    #    print("FFV: ", FFV_track/FFV_total, FFV_track, FFV_total)
+    #    print("PSD Final:", PSD_arr[0])
+    #    print_string=''
+    #    for i in PSD_arr:
+    #        if i == 0:
+    #            continue
+    #        print_string += str(np.round(i / PSD_arr[0], decimals=5)) + ' '
+    #    print(print_string)
 
     ## Code to write coordinates of each voxel-center to a .xyz file, which can be visualized in Ovito
     #if frame == frame_ids[-1]:
@@ -263,78 +264,7 @@ def iDist(frame):
     #        for i, sph in enumerate(FFV_save):
     #            print('X {:10.5f} {:10.5f} {:10.5f} {:10.5f}'.format(sph[0] - cell[0]/2, sph[1] - cell[1]/2, sph[2] - cell[2]/2, L/2), file=anaout)
     #    print('Free Volume Voxel XYZ File Printed')
-
-
-
-
-
-
-    # This part of the calculation determines the cumulative probe-accessible pore size distribution, where the distribution is defined as the probability that a random point (voxel) within the free volume resides within a free volume sphere of diameter d with minimum size probe_radius
-    # This code will take each voxel within the probe-accessible free volume and determine the largest free volume sphere that contains that point
-
-    d_arr = np.arange(0, 50.0 + 0.10, 0.10); PSD_arr = np.zeros_like(d_arr, dtype=int)                                                        # d_arr is the histogram of free volume sphere sizes; PSD_arr tracks the number of instances of voxels contained within free volume spheres of size at least d
-
-    # PSD_temp = np.zeros((A, 3)) -> A is the max number of points to analyze at a time, adjust as needed based on memory
-    PSD_probe = np.array(FFV_save); PSD_temp = np.zeros((1000, 3))
-    for count in range(1, len(PSD_probe)+1):
-        PSD_temp[(count % len(PSD_temp)) - 1] = PSD_probe[count - 1]
-
-        if ((count != len(PSD_probe)) and (count % len(PSD_temp) > 0)):
-            continue
-
-        if count % len(PSD_temp) == 0:
-            PSD_temp = np.round(PSD_temp, decimals = 5)
-        else:
-            PSD_temp = np.round(PSD_temp[:count], decimals = 5)
-
-        pair_arr, dist_arr = distances.capped_distance(PSD_temp, sphere_arr, max_radius+0.5, box=cell)                                  # Find distance between voxel-centers and free volume sphere centers
-        if len(dist_arr) > 0:
-            dist_arr -= radii_arr[pair_arr[:,1]]                                                                                        # Subtract radius of each free volume sphere to find distance between voxel-centers and the surface of the sphere
-            ## Useful print command for troubleshooting memory problems: prints the maximum distance calculated between voxel-centers and free volume sphere centers, the number of voxels, and the number of distances generated
-            #if frame == frame_ids[-1]:
-            #    print("PSD probes:", max_radius+0.5, len(PSD_temp), len(dist_arr))
-
-            # Fill PSD_arr for all voxel-centers located within a free volume sphere
-            index = 0; c_index = pair_arr[0,0]; skip = 0
-            for i,c in enumerate(pair_arr[:,0]):
-                if c > c_index:
-                    contained = pair_arr[index:i][np.where(dist_arr[index:i] < 0)[0],1]                                                 # Index of all free volume spheres containing the voxel-center
-                    if len(contained) > 0:                                                                                              # If at least 1 free volume sphere contains the voxel-center, find the largest sphere and add it to PSD_arr in a cumulative manner
-                        max_size = 2 * np.max(radii_arr[contained])
-                        PSD_arr[np.where(d_arr <= max_size)[0]] += 1
-                    index = i; c_index = c
-
-                    if i == len(pair_arr[:,0]) - 1:                                                                                     # Check to make sure the last voxel-center is counted
-                        skip = 1
-            if skip == 0:
-                contained = pair_arr[index:][np.where(dist_arr[index:] < 0)[0],1]                                                       # Index of all free volume spheres containing the voxel-center
-                if len(contained) > 0:                                                                                                  # If at least 1 free volume sphere contains the voxel-center, find the largest sphere and add it to PSD_arr in a cumulative manner
-                    max_size = 2 * np.max(radii_arr[contained])
-                    PSD_arr[np.where(d_arr <= max_size)[0]] += 1
-        del pair_arr; del dist_arr
-
-        PSD_temp = np.zeros((len(PSD_temp), 3))
-
-        ## Useful print command to track the probe-accessible PSD every loop
-        #if frame == frame_ids[-1]:
-        #    print("PSD:", PSD_arr[0])
-        #    print_string=''
-        #    for i in PSD_arr:
-        #        if i == 0:
-        #            continue
-        #        print_string += str(np.round(i / PSD_arr[0], decimals=5)) + ' '
-        #    print(print_string)
-    # Useful print command to track the final PSD
-    if frame%nt == 0:
-        print("PSD Final:", PSD_arr[0])
-    #    print_string=''
-    #    for i in PSD_arr:
-    #        if i == 0:
-    #            continue
-    #        print_string += str(np.round(i / PSD_arr[0], decimals=5)) + ' '
-    #    print(print_string)
-    del contained
-
+    
 
 
 
@@ -342,6 +272,347 @@ def iDist(frame):
     # Return the necessary information to complete the calculations: FFV_track / FFV_total gives the pore-accessible free volume, PSD_arr / PSD_arr[0] gives the pore-accessible PSD
     PSD_arr = np.insert(PSD_arr, 0, FFV_total); PSD_arr = np.insert(PSD_arr, 0, FFV_track)
     return PSD_arr
+
+
+
+
+
+    ## OLD ALGORITHM - FFV/PSD have been significantly updated. Below versions may not work properly.
+    ##
+    ## This part of the calculation determines the maximum size of voxel-center spheres without overlapping system atoms, where the total volume of all spheres larger than probe_radius defines the probe-accessible free volume of the system
+    ## This code will generate points at the center of voxels with side length L and grow these points into free volume spheres
+    ## Changing L, N, and d_inc can reduce run time and memory usage
+    #L = 0.35                                                                                                                                    # Side length of voxel in angstroms
+    #vox_x = np.round(np.linspace(0, cell[0], num = int(cell[0]/L)), decimals=5); vox_x = np.round((vox_x[:-1] + vox_x[1:])/2, decimals=5)       # Voxel-centers in the x direction
+    #vox_y = np.round(np.linspace(0, cell[1], num = int(cell[1]/L)), decimals=5); vox_y = np.round((vox_y[:-1] + vox_y[1:])/2, decimals=5)       # Voxel-centers in the y direction
+    #vox_z = np.round(np.linspace(0, cell[2], num = int(cell[2]/L)), decimals=5); vox_z = np.round((vox_z[:-1] + vox_z[1:])/2, decimals=5)       # Voxel-centers in the z direction
+    #
+    #sphere_arr = []; radii_arr = []                                                                                                             # sphere_arr and radii_arr track free volume sphere positions and size, respectively, where we are interested in sphere of radius r > probe_radius
+    #sphere_mask = np.zeros((len(vox_x),len(vox_y),len(vox_z)), dtype=np.int8)                                                                   # sphere_mask tracks whether a voxel-center is (-1) within the van der Waals volume of the system, (0) outside the van der Waals volume of the system, or (1) contains a free volume sphere
+    #
+    #N = 100000                                                                                                                                  # To improve efficiency, voxels are looped over in cubes of ~N voxel-centers
+    #vox_inc = int(N**(1/3)); vox_track = np.array((0,0,0), dtype=int); vox_track[0] = -vox_inc                                                  # vox_inc = side length of voxel cube, vox_track tracks the location of the cubes in x, y, and z compared to the position in vox_x, vox_y, and vox_z
+    #for x_i in np.arange(vox_inc,len(vox_x)+vox_inc,vox_inc):
+    #    vox_track[0] += vox_inc
+    #    if x_i > len(vox_x):
+    #        x_i = len(vox_x)
+    #
+    #    vox_track[1] = -vox_inc
+    #    for y_i in np.arange(vox_inc,len(vox_y)+vox_inc,vox_inc):
+    #        vox_track[1] += vox_inc
+    #        if y_i > len(vox_y):
+    #            y_i = len(vox_y)
+    #
+    #        vox_track[2] = -vox_inc
+    #        for z_i in np.arange(vox_inc,len(vox_z)+vox_inc,vox_inc):
+    #            vox_track[2] += vox_inc
+    #            if z_i > len(vox_z):
+    #                z_i = len(vox_z)
+    #
+    #            sphere_temp = np.zeros((N, 3)); count = 0                                                                                       # sphere_temp contains the position of the voxel-centers within the cube of size N
+    #            for x in vox_x[vox_track[0]:x_i]:
+    #                for y in vox_y[vox_track[1]:y_i]:
+    #                    for z in vox_z[vox_track[2]:z_i]:
+    #                        sphere_temp[count] = np.round([x,y,z], decimals = 5); count += 1
+    #            sphere_temp = np.round(sphere_temp[:count], decimals = 5)
+    #            radii_check = np.zeros((len(sphere_temp)), dtype=bool)                                                                          # radii_check tracks whether or not the free volume sphere size has been determined
+    #
+    #            # Find the approximate center of the voxel cube to find the system atoms near the voxel cube, where system atoms define the van der Waals volume of the system. Reduces computational cost
+    #            center = np.round([vox_x[vox_track[0] + int((x_i - vox_track[0])/2)], vox_y[vox_track[1] + int((y_i - vox_track[1])/2)], vox_z[vox_track[2] + int((z_i - vox_track[2])/2)]], decimals = 5)
+    #            sys_mask = distances.capped_distance(center, sys, (np.min(cell[:3]) + np.sqrt(3)*vox_inc*L + 1)/2, box=cell)[0][:,1]
+    #
+    #            # To reduce the number of calculations and limit memory usage, the distance between voxel-centers and system atoms is done in steps of d_inc Angstroms
+    #            d = 0.0; d_inc = 2                                                                                                               # Maximum distance to calculate between every voxel-center and every system atom
+    #            remaining = np.where(radii_check == False)[0]                                                                                    # Index of voxel-centers that still need their size determined
+    #            while len(remaining) > 0:
+    #                d += d_inc
+    #
+    #                pair_arr, dist_arr = distances.capped_distance(sphere_temp[remaining], sys[sys_mask], d, box=cell)                           # Distance between voxel-centers and system atoms
+    #
+    #                if len(dist_arr) > 0:
+    #                    dist_arr -= sys_radii[sys_mask][pair_arr[:,1]]                                                                           # Subtract radius of each system atom from the distance to get the distance from the voxel-center to the surface of the atom
+    #
+    #                    # Useful print command for troubleshooting memory problems: prints the distance calulcated out to, the number of voxel-centers, and the total number of distances to system atoms generated
+    #                    # Decreasing d_inc or N will reduce the number of distances generated each cycle, reducing memory usage
+    #                    if frame == frame_ids[-1]:
+    #                        if d == d_inc:
+    #                            print("Voxel Block: ", (vox_track/vox_inc).astype(int))
+    #                        print("Create Spheres:", d, len(remaining), len(dist_arr))
+    #
+    #                    # Fill sphere_arr, radii_arr, and radii_check for all voxel-centers that contain system atoms within d distance, where only radii_check is altered if the radius r > probe_radius
+    #                    index = 0; c_index = pair_arr[0,0]; skip = 0
+    #                    for i,c in enumerate(pair_arr[:,0]):
+    #                        if c > c_index:
+    #                            r_min = np.round(np.min(dist_arr[index:i]), decimals=5)                                                         # Minimum distance between voxel-center and system atom
+    #                            if r_min > probe_radius:
+    #                                sphere_arr.append(sphere_temp[remaining[c_index]]); radii_arr.append(r_min)
+    #                                radii_check[remaining[c_index]] = True                                                                      # Sphere does not overlap the system and radius r > probe_radius
+    #                                
+    #                                coords = np.floor(sphere_temp[remaining[c_index]]/np.array((vox_x[0],vox_y[0],vox_z[0]))/2).astype(int)
+    #                                sphere_mask[coords[0],coords[1],coords[2]] = 1
+    #                            else:
+    #                                radii_check[remaining[c_index]] = True                                                                      # Sphere is within the van der waals surface of the system or radius r < probe_radius
+    #
+    #                                if r_min < 0:                                                                                               # voxel-center is within the van der Waals surface of the system
+    #                                    coords = np.floor(sphere_temp[remaining[c_index]]/np.array((vox_x[0],vox_y[0],vox_z[0]))/2).astype(int)
+    #                                    sphere_mask[coords[0],coords[1],coords[2]] = -1
+    #
+    #                            index = i; c_index = c
+    #
+    #                            if i == len(pair_arr[:,0]) - 1:                                                                                 # Check to make sure the last voxel-center is counted
+    #                                skip = 1
+    #
+    #                    if skip == 0:
+    #                        r_min = np.round(np.min(dist_arr[index:]), decimals=5)                                                              # Minimum distance between voxel-center and system atom
+    #                        if r_min > probe_radius:
+    #                            sphere_arr.append(sphere_temp[remaining[c_index]]); radii_arr.append(r_min)
+    #                            radii_check[remaining[c_index]] = True                                                                          # Sphere does not overlap the system and radius r > probe_radius
+    #                            
+    #                            coords = np.floor(sphere_temp[remaining[c_index]]/np.array((vox_x[0],vox_y[0],vox_z[0]))/2).astype(int)
+    #                            sphere_mask[coords[0],coords[1],coords[2]] = 1
+    #                        else:
+    #                            radii_check[remaining[c_index]] = True                                                                          # Sphere is within the van der waals surface of the system or radius r < probe_radius
+    #                            
+    #                            if r_min < 0:                                                                                                   # voxel-center is within the van der Waals surface of the system
+    #                                coords = np.floor(sphere_temp[remaining[c_index]]/np.array((vox_x[0],vox_y[0],vox_z[0]))/2).astype(int)
+    #                                sphere_mask[coords[0],coords[1],coords[2]] = -1
+    #                del pair_arr; del dist_arr
+    #
+    #                remaining = np.where(radii_check == False)[0]
+    #            del remaining
+    #sphere_arr = np.array(sphere_arr); radii_arr = np.array(radii_arr); max_radius = np.max(radii_arr)
+    #del sphere_temp; del radii_check
+    #
+    ## Useful print command for troubleshooting problems: prints the number of voxel-centers within the free volume, the radius of the largest sphere, and the diameter of the largest sphere (pore)
+    ## Also prints the number of voxels within the system van der Waals free volume, voxels containing free volume spheres of radius r >= probe_radius, and voxels that need to be assessed whether they are in the free volume or not
+    #if frame%nt == 0:
+    #    print("Spheres Created:", len(radii_arr), max_radius, 2 * max_radius)
+    #    print("Voxels within system: ", len(sphere_mask[sphere_mask == -1]))
+    #    print("Voxels with free volume spheres: ", len(sphere_mask[sphere_mask == 1]))
+    #    print("Voxels outside the system: ", len(sphere_mask[sphere_mask == 0]))
+    #
+    ### Code to write coordinates and radius of each free volume sphere to a .xyz file, which can be visualized in Ovito, etc
+    #if frame == frame_ids[-1]:
+    #    with open('Free_Volume_Spheres.xyz', 'w') as anaout:
+    #        print(str(len(sphere_arr)), file=anaout)
+    #        print('Properties=species:S:1:pos:R:3:Radius:R:1', file=anaout)
+    #        for i, sph in enumerate(sphere_arr):
+    #            print('X {:10.5f} {:10.5f} {:10.5f} {:10.5f}'.format(sph[0] - cell[0]/2, sph[1] - cell[1]/2, sph[2] - cell[2]/2, radii_arr[i]), file=anaout)
+    #    print('Free Volume Sphere XYZ File Printed')
+    #
+    #
+    #
+    #
+    #
+    ## This part of the calculation determines the probe-accessible fractional free volume
+    ## The code will take the voxelized system and determine if each voxel-center lies within the free volume or not
+    ## Changing L, N, and d_inc can reduce run time and memory usage
+    #
+    #FFV_save = []                                                                                                                               # voxel-centers within the free volume will be re-used for the PSD calculation
+    #FFV_block = []; Block_center = []; Block_track = -1                                                                                         # Track the voxel cubes and voxel vubes centers
+    #FFV_track = 0; FFV_total = len(vox_x)*len(vox_y)*len(vox_z)                                                                                 # Number of voxels within the free volume; Total number of voxels
+    #
+    #N = 100000                                                                                                                                  # To improve efficiency, voxels are looped over in cubes of ~N voxel-centers
+    #vox_inc = int(N**(1/3)); vox_track = np.array((0,0,0), dtype=int); vox_track[0] = -vox_inc                                                  # vox_inc = side length of voxel cube, vox_track tracks the location of the cubes in x, y, and z compared to the position in vox_x, vox_y, and vox_z
+    #for x_i in np.arange(vox_inc,len(vox_x)+vox_inc,vox_inc):
+    #    vox_track[0] += vox_inc
+    #    if x_i > len(vox_x):
+    #        x_i = len(vox_x)
+    #
+    #    vox_track[1] = -vox_inc
+    #    for y_i in np.arange(vox_inc,len(vox_y)+vox_inc,vox_inc):
+    #        vox_track[1] += vox_inc
+    #        if y_i > len(vox_y):
+    #            y_i = len(vox_y)
+    #
+    #        vox_track[2] = -vox_inc
+    #        for z_i in np.arange(vox_inc,len(vox_z)+vox_inc,vox_inc):
+    #            vox_track[2] += vox_inc
+    #            if z_i > len(vox_z):
+    #                z_i = len(vox_z)
+    #
+    #            FFV_probe = np.zeros((N, 3)); count = 0; Block_track += 1                                                                       # FFV_probe contains the position of the voxel-centers within the cube of size N that still need to be calculated
+    #            for i,x in enumerate(vox_x[vox_track[0]:x_i]):
+    #                for j,y in enumerate(vox_y[vox_track[1]:y_i]):
+    #                    for k,z in enumerate(vox_z[vox_track[2]:z_i]):
+    #
+    #                        # If voxel-center is the center of a free volume sphere, count it and skip it
+    #                        if sphere_mask[i,j,k] == 1:
+    #                            FFV_track += 1; FFV_save.append(np.round([x,y,z], decimals = 5)); FFV_block.append(Block_track)
+    #                            continue
+    #                        
+    #                        # If voxel-center is within the van der Waals volume of the system, skip it
+    #                        elif sphere_mask[i,j,k] == -1:
+    #                            continue
+    #                        
+    #                        FFV_probe[count] = np.round([x,y,z], decimals = 5); count += 1
+    #            FFV_probe = np.round(FFV_probe[:count], decimals = 5)
+    #            FFV_check = np.zeros((len(FFV_probe)), dtype=bool)                                                                              # FFV_check tracks whether or not the voxel-center has been analyzed
+    #
+    #            # Find the approximate center of the voxel cube to find the free volume spheres near the voxel cube, where free volume spheres define the free volume of the system. Reduces computational cost
+    #            center = np.round([vox_x[vox_track[0] + int((x_i - vox_track[0])/2)], vox_y[vox_track[1] + int((y_i - vox_track[1])/2)], vox_z[vox_track[2] + int((z_i - vox_track[2])/2)]], decimals = 5); Block_center.append(center)
+    #
+    #            # To reduce the number of calculations and limit memory usage, the distance between voxel-centers and free volume spheres is done in steps of d_inc Angstroms
+    #            d = 0; d_inc = 2                                                                                                                # Maximum distance to calculate between every voxel-center and every free volume sphere
+    #            remaining = np.where(FFV_check == False)[0]                                                                                     # Index of voxel-centers that still need their location determined
+    #            while d < max_radius and d < 3*probe_radius:
+    #                d += d_inc
+    #
+    #                # Only need to measure distance from voxel-centers to free volume spheres out to the maximum radius of the free volume spheres
+    #                if len(remaining) == 0:
+    #                    d = max_radius + 0.5
+    #                
+    #                sph_mask = distances.capped_distance(center, sphere_arr, d + np.sqrt(3)*vox_inc*L/2 + 0.5, box=cell)[0][:,1]                # Free volume spheres near the voxel cube
+    #
+    #                pair_arr, dist_arr = distances.capped_distance(FFV_probe[remaining], sphere_arr[sph_mask], d, box=cell)                     # Distance between each voxel-center and the free volume sphere centers generated in the code above
+    #                if len(dist_arr) > 0:
+    #                    dist_arr -= radii_arr[sph_mask][pair_arr[:,1]]                                                                          # Subtract radius of each free volume sphere to find distance between voxel-center and the surface of the sphere
+    #
+    #                    # Useful print command for troubleshooting memory problems: prints the maximum distance calculated between voxel-center and free volume spheres, the number of voxel-centers, and the number of distances generated
+    #                    # Decreasing d_inc or N will reduce the number of distances generated each cycle, reducing memory usage
+    #                    if frame%nt == 0:
+    #                        if d == d_inc:
+    #                            print("Voxel Block: ", (vox_track/vox_inc).astype(int))
+    #                        print("FFV Probes:", d, len(remaining), len(dist_arr))
+    #
+    #                    # Fill FFV_check for all voxel-centers located within a free volume sphere
+    #                    index = 0; c_index = pair_arr[0,0]; skip = 0
+    #                    for i,c in enumerate(pair_arr[:,0]):
+    #                        if c > c_index:
+    #                            if np.any(dist_arr[index:i] < 0):                                                                               # If the voxel-center lies within a free volume sphere, mark it as no longer needing to be calculated and increase the number of voxels within the free volume by 1
+    #                                FFV_check[remaining[c_index]] = True
+    #                                FFV_save.append(FFV_probe[remaining[c_index]]); FFV_block.append(Block_track)                               # Save the voxel-center for later use in PSD caluclations
+    #                                FFV_track += 1
+    #                            else:                                                                                                           # If the voxel-center is within d of at least 1 free volume sphere but it doesn't lie within it, it is likely not within the free volume of any sphere, significantly reduces computation time
+    #                                FFV_check[remaining[c_index]] = True
+    #                            index = i; c_index = c
+    #
+    #                            if i == len(pair_arr[:,0]) - 1:                                                                                 # Check to make sure the last voxel-centers is counted
+    #                                skip = 1
+    #                                
+    #                    if skip == 0:
+    #                        if np.any(dist_arr[index:] < 0):                                                                                    # If the voxel-center lies within a free volume sphere, mark it as no longer needing to be calculated and increase the number of voxels within the free volume by 1
+    #                            FFV_check[remaining[c_index]] = True
+    #                            FFV_save.append(FFV_probe[remaining[c_index]]); FFV_block.append(Block_track)                                   # Save the voxel-center for later use in PSD caluclations
+    #                            FFV_track += 1
+    #                        else:                                                                                                               # If the voxel-center is within d of at least 1 free volume sphere but it doesn't lie within it, it is likely not within the free volume of any sphere, significantly reduces computation time
+    #                            FFV_check[remaining[c_index]] = True
+    #                remaining = np.where(FFV_check == False)[0]
+    #                del pair_arr; del dist_arr
+    #        
+    #            ## Useful print command to track the probe-accessible free volume every loop
+    #            #if frame == frame_ids[-1]:
+    #            #    print("FFV:", FFV_total, FFV_track / FFV_total)
+    #
+    ## Useful print command to track the final FFV
+    #if frame%nt == 0:
+    #    print("FFV Final:", FFV_total, FFV_track / FFV_total)
+    #del remaining; del FFV_check; del sphere_mask; FFV_block = np.array(FFV_block); Block_center = np.array(Block_center)
+    #
+    ### Code to write coordinates of each voxel-center to a .xyz file, which can be visualized in Ovito
+    ##if frame == frame_ids[-1]:
+    ##    with open('Free_Volume_Voxels.xyz', 'w') as anaout:
+    ##        print(str(len(FFV_save)), file=anaout)
+    ##        print('Properties=species:S:1:pos:R:3:Radius:R:1', file=anaout)
+    ##        for i, sph in enumerate(FFV_save):
+    ##            print('X {:10.5f} {:10.5f} {:10.5f} {:10.5f}'.format(sph[0] - cell[0]/2, sph[1] - cell[1]/2, sph[2] - cell[2]/2, L/2), file=anaout)
+    ##    print('Free Volume Voxel XYZ File Printed')
+    #
+    #
+    #
+    #
+    #
+    #
+    ## This part of the calculation determines the cumulative probe-accessible pore size distribution, where the distribution is defined as the probability that a random point (voxel) within the free volume resides within a free volume sphere of diameter d with minimum size probe_radius
+    ## This code will take each voxel within the probe-accessible free volume and determine the largest free volume sphere that contains that point
+    ## Changing L, N, and d_inc can reduce run time and memory usage
+    #
+    #d_arr = np.arange(0, 50.0 + 0.10, 0.10); PSD_arr = np.zeros_like(d_arr, dtype=int)                                                      # d_arr is the histogram of free volume sphere sizes; PSD_arr tracks the number of instances of voxels contained within free volume spheres of size at least d
+    #
+    #PSD_probes = np.array(FFV_save)
+    #
+    ## To improve efficiency, voxels are looped over the cubes generated in the FFV calculation
+    ## This is an expensive calculation, so cubes are looped over N voxel-centers at a time
+    ## There is no d_inc variable here, as it would not be useful
+    #N = 1000
+    #for block, center in enumerate(Block_center):
+    #    PSD_block = PSD_probes[FFV_block == block]
+    #
+    #    if len(PSD_block) == 0:
+    #        continue
+    #    
+    #    # Find the approximate center of the voxel cube to find the free volume spheres near the voxel cube, where free volume spheres define the free volume of the system. Reduces computational cost
+    #    sph_mask = distances.capped_distance(center, sphere_arr, max_radius + np.sqrt(3)*vox_inc*L/2 + 0.5, box=cell)[0][:,1]
+    #
+    #    PSD_temp = np.zeros((N, 3))                                                                                                         # PSD_temp contains the position of the N voxel-centers within the voxel cube
+    #    for count in range(1, N+1):
+    #        PSD_temp[(count % len(PSD_temp)) - 1] = PSD_block[count - 1]
+    #
+    #        if ((count != len(PSD_probes)) and (count % len(PSD_temp) > 0)):
+    #            continue
+    #        PSD_temp = np.round(PSD_temp[:count], decimals = 5)
+    #
+    #        pair_arr, dist_arr = distances.capped_distance(PSD_temp, sphere_arr[sph_mask], max_radius+0.5, box=cell)                        # Find distance between voxel-centers and free volume sphere centers
+    #
+    #        if len(dist_arr) > 0:
+    #            dist_arr -= radii_arr[sph_mask][pair_arr[:,1]]                                                                              # Subtract radius of each free volume sphere to find distance between voxel-centers and the surface of the sphere
+    #
+    #            # Useful print command for troubleshooting memory problems: prints the maximum distance calculated between voxel-centers and free volume sphere centers, the number of voxels, and the number of distances generated
+    #            if frame == frame_ids[-1]:
+    #                if count <= len(PSD_temp):
+    #                    print("Voxel Block: ", block, " of ", len(Block_center)-1)
+    #                print("PSD Probes:", max_radius+0.5, len(PSD_temp), len(dist_arr))
+    #
+    #            # Fill PSD_arr for all voxel-centers located within a free volume sphere
+    #            index = 0; c_index = pair_arr[0,0]; skip = 0
+    #            for i,c in enumerate(pair_arr[:,0]):
+    #                if c > c_index:
+    #                    contained = pair_arr[index:i][np.where(dist_arr[index:i] < 0)[0],1]                                                 # Index of all free volume spheres containing the voxel-center
+    #
+    #                    if len(contained) > 0:                                                                                              # If at least 1 free volume sphere contains the voxel-center, find the largest sphere and add it to PSD_arr in a cumulative manner
+    #                        max_size = 2 * np.max(radii_arr[contained])
+    #                        PSD_arr[np.where(d_arr <= max_size)[0]] += 1
+    #                    index = i; c_index = c
+    #
+    #                    if i == len(pair_arr[:,0]) - 1:                                                                                     # Check to make sure the last voxel-center is counted
+    #                        skip = 1
+    #
+    #            if skip == 0:
+    #                contained = pair_arr[index:][np.where(dist_arr[index:] < 0)[0],1]                                                       # Index of all free volume spheres containing the voxel-center
+    #                if len(contained) > 0:                                                                                                  # If at least 1 free volume sphere contains the voxel-center, find the largest sphere and add it to PSD_arr in a cumulative manner
+    #                    max_size = 2 * np.max(radii_arr[contained])
+    #                    PSD_arr[np.where(d_arr <= max_size)[0]] += 1
+    #        PSD_temp = np.zeros((N, 3))  
+    #        del pair_arr; del dist_arr
+    #
+    #        ## Useful print command to track the probe-accessible PSD every loop
+    #        #if frame == frame_ids[-1]:
+    #        #    print("PSD:", PSD_arr[0])
+    #        #    print_string=''
+    #        #    for i in PSD_arr:
+    #        #        if i == 0:
+    #        #            continue
+    #        #        print_string += str(np.round(i / PSD_arr[0], decimals=5)) + ' '
+    #        #    print(print_string)
+    #
+    ## Useful print command to track the final PSD
+    #if frame%nt == 0:
+    #    print("PSD Final:", PSD_arr[0])
+    ##    print_string=''
+    ##    for i in PSD_arr:
+    ##        if i == 0:
+    ##            continue
+    ##        print_string += str(np.round(i / PSD_arr[0], decimals=5)) + ' '
+    ##    print(print_string)
+    #del contained
+    #
+    #
+    #
+    #
+    #
+    ## Return the necessary information to complete the calculations: FFV_track / FFV_total gives the pore-accessible free volume, PSD_arr / PSD_arr[0] gives the pore-accessible PSD
+    #PSD_arr = np.insert(PSD_arr, 0, FFV_total); PSD_arr = np.insert(PSD_arr, 0, FFV_track)
+    #return PSD_arr
     
 
 
