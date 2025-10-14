@@ -74,7 +74,7 @@ def iDist(frame):
 
 
 
-    # This part of the calculation determines the maximum size of voxel-center spheres without overlapping system atoms, where the total volume of all spheres larger than probe_radius defines the probe-accessible free volume of the system
+    # This part of the calculation determines the maximum size of voxel-centered free volume spheres without overlapping system atoms, where the total volume of all spheres larger than probe_radius defines the probe-accessible free volume of the system
     # This code will generate points at the center of voxels with side length L and grow these points into free volume spheres
     # Changing L, N, and d_inc can reduce run time and memory usage
     L = 0.35                                                                                                                                    # Side length of voxel in angstroms
@@ -82,8 +82,8 @@ def iDist(frame):
     vox_y = np.round(np.linspace(0, cell[1], num = int(cell[1]/L)), decimals=5); vox_y = np.round((vox_y[:-1] + vox_y[1:])/2, decimals=5)       # Voxel-centers in the y direction
     vox_z = np.round(np.linspace(0, cell[2], num = int(cell[2]/L)), decimals=5); vox_z = np.round((vox_z[:-1] + vox_z[1:])/2, decimals=5)       # Voxel-centers in the z direction
 
-    sphere_arr = []; radii_arr = []                                                                                                             # sphere_arr and radii_arr track free volume sphere positions and size, respectively, where we are interested in sphere of radius r > probe_radius
-    PSD_probes = []                                                                                                                             # PSD_probes tracks all voxel-centers not within the system van der Waals volume for later calculations
+    sphere_arr = []; radii_arr = []                                                                                                             # sphere_arr and radii_arr track free volume sphere positions and size, respectively, where we are interested in spheres of radius r > probe_radius
+    PSD_probes = []                                                                                                                             # PSD_probes tracks all voxel-centers not within the system van der Waals volume for later calculations, r >= 0
     
     N = 20e9                                                                                                                                    # Maximum number of distance calculations-per-loop. A lower number uses less memory.
     N_cube = int((N/len(sys))**(1/3))**3                                                                                                        # To improve efficiency, voxels are looped over in cubes of N_cube voxel-centers
@@ -116,70 +116,57 @@ def iDist(frame):
                         for z in vox_z[vox_track[2]:z_i]:
                             sphere_temp[count] = np.round([x,y,z], decimals = 5); count += 1
                 sphere_temp = np.round(sphere_temp[:count], decimals = 5)
-                radii_check = np.zeros((len(sphere_temp)), dtype=bool)                                                                          # radii_check tracks whether or not the free volume sphere size has been determined
 
                 # Find the approximate center of the voxel cube to find the system atoms near the voxel cube (sys_mask), where system atoms define the van der Waals volume of the system. Reduces computational cost
                 center = np.round([vox_x[vox_track[0] + int((x_i - vox_track[0])/2)], vox_y[vox_track[1] + int((y_i - vox_track[1])/2)], vox_z[vox_track[2] + int((z_i - vox_track[2])/2)]], decimals = 5)
 
                 # To reduce the number of calculations and limit memory usage, the distance between voxel-centers and system atoms is done in steps of d_inc Angstroms
-                d = 0.0; d_inc = 2                                                                                                               # Maximum distance to calculate between every voxel-center and every system atom
-                remaining = np.where(radii_check == False)[0]                                                                                    # Index of voxel-centers that still need their size determined
-                while len(remaining) > 0:
+                d = 0.0; d_inc = 2                                                                                                              # Maximum distance to calculate between every voxel-center and every system atom
+                while len(sphere_temp) > 0:
                     d += d_inc
 
-                    sys_mask = distances.capped_distance(center, sys, d + np.sqrt(3)*vox_inc*L/2 + 0.5, box=cell)[0][:,1]                        # System atoms near the voxel cube
+                    sys_mask = distances.capped_distance(center, sys, d + np.sqrt(3)*vox_inc*L/2 + 0.5, box=cell)[0][:,1]                       # System atoms near the voxel cube
 
-                    pair_arr, dist_arr = distances.capped_distance(sphere_temp[remaining], sys[sys_mask], d, box=cell)                           # Distance between voxel-centers and system atoms
+                    pair_arr, dist_arr = distances.capped_distance(sphere_temp, sys[sys_mask], d, box=cell)                                     # Distance between voxel-centers and system atoms
+
+                    ## Useful print command for troubleshooting memory problems: prints the distance calulcated out to and the number of distance calculations
+                    ## Decreasing d_inc or N will reduce the number of distances generated each cycle, reducing memory usage
+                    #if frame == frame_ids[-1]:
+                    #    if d == d_inc:
+                    #        print("Voxel Block: ", (vox_track/vox_inc).astype(int))
+                    #    print("Distance calculations: {:2.1f} {:.1e}".format(d, len(sphere_temp)*len(sys[sys_mask])))
 
                     if len(dist_arr) > 0:
-                        dist_arr -= sys_radii[sys_mask][pair_arr[:,1]]                                                                           # Subtract radius of each system atom from the distance to get the distance from the voxel-center to the surface of the atom
+                        dist_arr -= sys_radii[sys_mask][pair_arr[:,1]]                                                                          # Subtract radius of each system atom from the distance to get the distance from the voxel-center to the surface of the atom
 
-                        ## Useful print command for troubleshooting memory problems: prints the distance calulcated out to and the number of distance calculations
-                        ## Decreasing d_inc or N will reduce the number of distances generated each cycle, reducing memory usage
-                        #if frame == frame_ids[-1]:
-                        #    if d == d_inc:
-                        #        print("Voxel Block: ", (vox_track/vox_inc).astype(int))
-                        #    print("Distance calculations: {:2.1f} {:.1e}".format(d, len(sphere_temp[remaining])*len(sys[sys_mask])))
-
-                        # Fill sphere_arr, radii_arr, and radii_check for all voxel-centers that contain system atoms within d distance, where only radii_check is altered if the radius r > probe_radius
-                        index = 0; c_index = pair_arr[0,0]; skip = 0
-                        for i,c in enumerate(pair_arr[:,0]):
-                            if c > c_index:
+                        # Fill sphere_arr and radii_arr for all voxel-centers that contain system atoms within d distance
+                        index = 0; sph_save = pair_arr[0,0]
+                        sphere_remove = []
+                        for i,sph in enumerate(pair_arr[:,0]):
+                            if sph > sph_save:
                                 r_min = np.round(np.min(dist_arr[index:i]), decimals=5)                                                         # Minimum distance between voxel-center and system atom
+
                                 if r_min > probe_radius:
-                                    sphere_arr.append(sphere_temp[remaining[c_index]]); radii_arr.append(r_min)
-                                    radii_check[remaining[c_index]] = True                                                                      # Sphere does not overlap the system and radius r > probe_radius
-                                    
-                                    PSD_probes.append(sphere_temp[remaining[c_index]])
-                                else:
-                                    radii_check[remaining[c_index]] = True                                                                      # Sphere is within the van der waals surface of the system or radius r < probe_radius
+                                    sphere_arr.append(sphere_temp[sph_save]); radii_arr.append(r_min)                                           # Sphere does not overlap the system and radius r > probe_radius
 
-                                    if r_min > 0:                                                                                               # voxel-center is within the van der Waals surface of the system
-                                        PSD_probes.append(sphere_temp[remaining[c_index]])
+                                if r_min >= 0:                                                                                                  # Sphere does not overlap the system and radius r >= 0 -> use in later analysis
+                                    PSD_probes.append(sphere_temp[sph_save])
 
-                                index = i; c_index = c
+                                sphere_remove.append(sph_save)                                                                                  # Analysis complete, remove from future distance calculations
+                                index = i; sph_save = sph
 
-                                if i == len(pair_arr[:,0]) - 1:                                                                                 # Check to make sure the last voxel-center is counted
-                                    skip = 1
-
-                        if skip == 0:
+                        if i > index:                                                                                                           # Check to make sure the last voxel-center is counted
                             r_min = np.round(np.min(dist_arr[index:]), decimals=5)                                                              # Minimum distance between voxel-center and system atom
-                            if r_min > probe_radius:
-                                sphere_arr.append(sphere_temp[remaining[c_index]]); radii_arr.append(r_min)
-                                radii_check[remaining[c_index]] = True                                                                          # Sphere does not overlap the system and radius r > probe_radius
-                                
-                                PSD_probes.append(sphere_temp[remaining[c_index]])
-                            else:
-                                radii_check[remaining[c_index]] = True                                                                          # Sphere is within the van der waals surface of the system or radius r < probe_radius
-                                
-                                if r_min > 0:                                                                                                   # voxel-center is within the van der Waals surface of the system
-                                    PSD_probes.append(sphere_temp[remaining[c_index]])
-                    del pair_arr; del dist_arr
 
-                    remaining = np.where(radii_check == False)[0]
-                del remaining
+                            if r_min > probe_radius:
+                                sphere_arr.append(sphere_temp[sph_save]); radii_arr.append(r_min)                                               # Sphere does not overlap the system and radius r > probe_radius
+
+                            if r_min >= 0:                                                                                                      # Sphere does not overlap the system and radius r >= 0 -> use in later analysis
+                                PSD_probes.append(sphere_temp[sph_save])
+
+                            sphere_remove.append(sph_save)                                                                                      # Analysis complete, remove from future distance calculations
+                    sphere_temp = np.delete(sphere_temp, np.array(sphere_remove), axis=0)                                                       # Removed evaluated voxel-centers
     sphere_arr = np.array(sphere_arr); radii_arr = np.array(radii_arr); max_radius = np.max(radii_arr); PSD_probes = np.array(PSD_probes)
-    del sphere_temp; del radii_check
 
     ## Useful print command for troubleshooting problems: prints the number of voxel-centers within the free volume, the radius of the largest sphere, and the diameter of the largest sphere (pore)
     ## Also prints the number of voxels within the system van der Waals free volume, voxels containing free volume spheres of radius r >= probe_radius, and voxels that need to be assessed whether they are in the free volume or not
@@ -201,7 +188,7 @@ def iDist(frame):
 
 
     # This part of the calculation determines the free volume fraction and cumulative probe-accessible pore size distribution, where the distribution is defined as the probability that a random point (voxel) within the free volume resides within a free volume sphere of diameter d with minimum size probe_radius
-    # This code will take each voxel within not within the system volume and determine 1) if it lies within the free volume (FFV), and 2) the largest free volume sphere it lies within (PSD)
+    # This code will take each voxel not within the system volume (PSD_probes) and determine 1) if it lies within the free volume (FFV), and 2) the largest free volume sphere it lies within (PSD)
     # Changing L, N, and d_inc can reduce run time and memory usage
 
     FFV_track = 0; FFV_total = len(vox_x)*len(vox_y)*len(vox_z)                                                                                 # Track number of voxels within the free volume against the total number to get FFV
@@ -234,9 +221,10 @@ def iDist(frame):
             #    print("Distances calculated: {:.1e}".format(len(sph_temp)*len(PSD_probes)))
             
             pair_arr, dist_arr = distances.capped_distance(sph_temp, PSD_probes, d/2, box=cell)                                                 # Distance between free volume spheres and voxel-centers
+
             if len(dist_arr) > 0:
                 dist_arr -= rad_temp[pair_arr[:,0]]                                                                                             # Subtract radius of each free volume sphere from the distance to get the distance from the voxel-center to the surface of the free volume sphere
-                pair_arr = np.unique(pair_arr[:,1][dist_arr < 0])                                                                               # Only consider voxel-centers that lies within the free volume sphere (adjusted distance < 0), and only count each occurence once (unique)
+                pair_arr = np.unique(pair_arr[:,1][dist_arr < 0])                                                                               # Only consider voxel-centers that lie within the free volume sphere (adjusted distance < 0), and only count each occurence once (unique)
 
                 FFV_track += len(pair_arr); PSD_arr[np.where(d_arr < d)[0]] += len(pair_arr)                                                    # Voxel-centers w/n free volume sphere count towards the FFV and cumulatively towards the PSD
                 if np.all(FFV_save[0] == -1):                                                                                                   # Save free volume voxel-centers for printing
@@ -703,6 +691,7 @@ def main(trj_file, top_file, system_name, probe_radius, t_min, t_max, N_frames, 
     d_arr = np.arange(0, 50.0 + 0.10, 0.10)
     PSD_all = radii_arr[:,2:]; PSD_all = np.divide(PSD_all.T, PSD_all[:,0], dtype=float).T
     PSD_Cumulative = np.array([np.mean(PSD_all, axis=0), np.std(PSD_all, axis = 0)])
+    # PSD is the derivative of the cumulative PSD
     PSD = np.array([np.mean((PSD_all[:,:len(d_arr)-2] - PSD_all[:,2:])/(d_arr[2:] - d_arr[:len(d_arr)-2]), axis=0), np.std((PSD_all[:,:len(d_arr)-2] - PSD_all[:,2:])/(d_arr[2:] - d_arr[:len(d_arr)-2]), axis=0)])
 
     with open('Cumulative_PSD.xvg', 'w') as anaout:
