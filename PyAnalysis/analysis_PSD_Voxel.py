@@ -20,7 +20,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 # The output includes the Cumulative Pore Size Distribution, Pore Size Distribution, and Free Volume Fraction
 # This code was written based on the methods used for PoreBlazer: https://github.com/SarkisovGitHub/PoreBlazer
 #
-# This code voxelizes the system into voxels of side length L_voxel, defined below in the iDist function. The default value of L_voxel = 0.35 Angstroms, which appears to work well for systems with very low probe-accessible free volumes.
 # When implementing this code, it is recommended to test different values of L_voxel to ensure convergence of the FFV as L_voxel decreases. Note, computation time and memory usage will grow significantly as L_voxel decreases.
 # If you run into memory or extreme run times, there are debugging lines throughout the code, and several values you can change to increase or decrease memory usage.
 # There are two instances where .xyz files can be created to visualize 1) probe-accessible spheres of maximum radius without overlapping the van der Waals volume of the systems, and 2) voxel-centers that lie within the probe-accessible volume
@@ -438,3 +437,4 @@ def main(trj_file, top_file, system_name, probe_radius, t_min, t_max, N_frames, 
 
 if __name__ == "__main__":
     main(trj_file, top_file, system_name, probe_radius, t_min, t_max, N_frames, nt)
+
