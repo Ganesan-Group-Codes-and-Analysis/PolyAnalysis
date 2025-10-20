@@ -15,10 +15,13 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-# This script determines the pore size distribution based on the van der Waals volume of the system
+# This script determines the free volume (pore) size distribution based on the van der Waals volume of the system
 # This code was specifically desgined to find the distribution of water-rich pores within a hydrated polymer system
-# The output includes the Cumulative Pore Size Distribution, Pore Size Distribution, and Free Volume Fraction
+# The output includes the Cumulative Pore Size Distribution (Cumulative PSD), Pore Size Distribution (PSD), and Free Volume Fraction (Fractional Free Volume, FFV).
 # This code was written based on the methods used for PoreBlazer: https://github.com/SarkisovGitHub/PoreBlazer
+#
+# As written, this code reads in GROMACS trajectory data or PoreBlazer XYZ and DAT data using MDAnalysis
+# As written, this code is designed for 3D-periodic rectangular simulations
 #
 # When implementing this code, it is recommended to test different values of L_voxel to ensure convergence of the FFV as L_voxel decreases. Note, computation time and memory usage will grow significantly as L_voxel decreases.
 # If you run into memory or extreme run times, there are debugging lines throughout the code, and several values you can change to increase or decrease memory usage.
@@ -38,8 +41,8 @@ from sys import argv
 script, trj_file, top_file, system_name, probe_radius, t_min, t_max, N_frames, nt = argv
 probe_radius = float(probe_radius); t_min = float(t_min); t_max = float(t_max); N_frames = int(N_frames); nt = int(nt)
 # trj_file     = .trr/.xtc/.gro file, see below for XYZ files adapted from PoreBlazer analyses
-# top_file     = .tpr file
-# system_name  = names of atoms that make up the polymer matrix in a form acceptable by MDAnalysis.select_atoms(), e.g., "moltype MOL"
+# top_file     = .tpr file, see below for DAT files adapted from PoreBlazer analyses
+# system_name  = names of atoms that make up the system matrix in a form acceptable by MDAnalysis.select_atoms(), e.g., "moltype MOL", "moltype MOL or resname LI", "moltype MOL and not name LI", "all"
 # probe_radius = radius in Angstroms of the probe for obtaining the probe-accessible PSD and FFV, e.g., water molecules are 1.4 Angstroms
 #                minimum probe_radius is the voxel size
 # t_min        = start time for analysis in ps (-1 assumes the start time of the first frame)
@@ -53,6 +56,11 @@ probe_radius = float(probe_radius); t_min = float(t_min); t_max = float(t_max); 
 # top_file = 'input.dat'
 # system_name = '', XYZ atoms do not have defined residues. Therefore, ALL atoms are assumed to define the system, and solvent atoms must be removed to probe solvent free volume
 # e.g., python3 analysis_PSD_Voxel.py md.xyz input.dat "" 1.4 -1 -1 -1 1
+#
+# input.dat example
+# polymer_matrix.xyz            # .xyz file name
+# 96.65307 96.65307 96.65307    # Box dimensions: box length
+# 90 90 90                      # Box dimensions: rectangular
 
 # Example of Use: python3 analysis_PSD_Voxel.py md.xtc md.tpr "moltype MOL" 1.4 90000 100000 80 80
 #                 Polymer chains are molecules with name MOL -> this defines the "system" domain
@@ -219,6 +227,10 @@ def iDist(frame):
     
     # Starting from the largest free volume spheres, find all free volume voxels within the desired free volume domain for FFV and PSD calulcations
     for d in np.round(np.arange(d_max, 0, -d_step), decimals = 5):
+        if 2*max_radius > d:
+            print("Largest free volume element lies outside the defined bounds for the PSD. Update d_max accordingly.")
+            exit()
+
         if d - d_step > 2*max_radius:
             continue
         
@@ -436,5 +448,3 @@ def main(trj_file, top_file, system_name, probe_radius, t_min, t_max, N_frames, 
 
 if __name__ == "__main__":
     main(trj_file, top_file, system_name, probe_radius, t_min, t_max, N_frames, nt)
-
-
