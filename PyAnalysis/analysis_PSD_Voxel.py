@@ -28,7 +28,6 @@ import MDAnalysis as mda
 import MDAnalysis.analysis.distances as dist
 import MDAnalysis.lib.distances as distances
 import numpy as np
-from igraph import Graph
 
 import multiprocessing as mp
 import functools
@@ -437,4 +436,5 @@ def main(trj_file, top_file, system_name, probe_radius, t_min, t_max, N_frames, 
 
 if __name__ == "__main__":
     main(trj_file, top_file, system_name, probe_radius, t_min, t_max, N_frames, nt)
+
 
