@@ -229,7 +229,7 @@ def iDist(frame):
     for d in np.round(np.arange(d_max, 0, -d_step), decimals = 5):
         if 2*max_radius > d:
             print("Largest free volume element lies outside the defined bounds for the PSD. Update d_max accordingly.")
-            exit()
+            break
 
         if d - d_step > 2*max_radius:
             continue
