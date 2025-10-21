@@ -196,7 +196,8 @@ def iDist(frame):
     #    print("Spheres within the free volume: ", len(radii_arr[radii_arr >= probe_radius]))
     #    print("Voxels not within the system: ", len(radii_arr[radii_arr != 0]))
 
-    ### Code to write coordinates and radius of each free volume sphere to a .xyz file, which can be visualized in Ovito, etc
+    ## Code to write coordinates and radius of each free volume sphere to a .xyz file, which can be visualized in Ovito, etc
+    ##     Radius = radius of the largest free volume sphere centered on the voxel-center
     #if frame == frame_ids[-1]:
     #    idx_x, idx_y, idx_z = np.where(radii_arr >= probe_radius)
     #    with open('Free_Volume_Spheres.xyz', 'w') as anaout:
@@ -268,10 +269,10 @@ def iDist(frame):
 
                 FFV_track += len(pair_arr); PSD_arr[np.where(d_arr < d)[0]] += len(pair_arr)                                                    # Voxel-centers w/n free volume sphere count towards the FFV and cumulatively towards the PSD
                 if np.all(FFV_save[0] == -1):                                                                                                   # Save free volume voxel-centers for printing
-                    FFV_save = PSD_probes[pair_arr]
+                    FFV_save = PSD_probes[pair_arr]; d_save = np.zeros((len(pair_arr))) + d
                 else:
-                    FFV_save = np.append(FFV_save, PSD_probes[pair_arr], axis=0)
-                PSD_probes = np.delete(PSD_probes, pair_arr, axis=0)                                                                            # No longer consider voxel-centers that are found within a free volume sphere in future loops (prevent double-counting)
+                    FFV_save = np.append(FFV_save, PSD_probes[pair_arr], axis=0); d_save = np.append(d_save, np.zeros((len(pair_arr))) + d)
+                PSD_probes = np.delete(PSD_probes, pair_arr, axis=0)      
     
     ## Code to print the final FFV and PSD for the last frame analyzed
     #if frame == frame_ids[-1]:
@@ -285,15 +286,16 @@ def iDist(frame):
     #    print(print_string)
 
     ## Code to write coordinates of each voxel-center to a .xyz file, which can be visualized in Ovito
+    ##     Radius = L_voxel/2, Alpha = diameter of the largest free volume sphere the voxel-center lies within
     #if frame == frame_ids[-1]:
     #    with open('Free_Volume_Voxels.xyz', 'w') as anaout:
     #        print(str(len(FFV_save)), file=anaout)
-    #        print('Properties=species:S:1:pos:R:3:Radius:R:1', file=anaout)
+    #        print('Properties=species:S:1:pos:R:3:Radius:R:1:Alpha:R:1', file=anaout)
     #        for i, sph in enumerate(FFV_save):
     #            if '.xyz' in trj_file:
-    #                print('X {:10.5f} {:10.5f} {:10.5f} {:10.5f}'.format(sph[0], sph[1], sph[2], L_voxel/2), file=anaout)
+    #                print('X {:10.5f} {:10.5f} {:10.5f} {:10.5f}'.format(sph[0], sph[1], sph[2], L_voxel/2, d_save[i]), file=anaout)
     #            else:
-    #                print('X {:10.5f} {:10.5f} {:10.5f} {:10.5f}'.format(sph[0] - cell[0]/2, sph[1] - cell[1]/2, sph[2] - cell[2]/2, L_voxel/2), file=anaout)
+    #                print('X {:10.5f} {:10.5f} {:10.5f} {:10.5f}'.format(sph[0] - cell[0]/2, sph[1] - cell[1]/2, sph[2] - cell[2]/2, L_voxel/2, d_save[i]), file=anaout)
     #    print('Free Volume Voxel XYZ File Printed')
     
 
@@ -441,11 +443,10 @@ def main(trj_file, top_file, system_name, probe_radius, t_min, t_max, N_frames, 
                 if i == 0:
                     print(' {:10.5f} {:10.5f} {:10.5f}'.format(np.round(d_arr[i], decimals=3), 0.0, 0.0), file=anaout)
                 else:
-                    print(' {:10.5f} {:10.5f} {:10.5f}'.format(np.round(d_arr[i], decimals=3), PSD[0,i], PSD[1,i]), file=anaout)
+                    print(' {:10.5f} {:10.5f} {:10.5f}'.format(np.round(d_arr[i], decimals=3), PSD[0,i-1], PSD[1,i-1]), file=anaout)
 
     # Deletes the temporary .hdf5 file
     os.remove('/tmp/PSD.hdf5')
 
 if __name__ == "__main__":
     main(trj_file, top_file, system_name, probe_radius, t_min, t_max, N_frames, nt)
-
