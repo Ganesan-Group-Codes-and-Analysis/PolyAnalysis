@@ -227,7 +227,7 @@ def iDist(frame):
     
     # Starting from the largest free volume spheres, find all free volume voxels within the desired free volume domain for FFV and PSD calulcations
     for d in np.round(np.arange(d_max, 0, -d_step), decimals = 5):
-        if 2*max_radius > d:
+        if 2*max_radius > d_max:
             print("Largest free volume element lies outside the defined bounds for the PSD. Update d_max accordingly.")
             break
 
@@ -448,3 +448,4 @@ def main(trj_file, top_file, system_name, probe_radius, t_min, t_max, N_frames, 
 
 if __name__ == "__main__":
     main(trj_file, top_file, system_name, probe_radius, t_min, t_max, N_frames, nt)
+
